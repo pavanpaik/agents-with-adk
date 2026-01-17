@@ -108,9 +108,39 @@ Screenshots of the system in action can be found in the img/ directory.
 └── README.md
 ```
 
-## Next Steps
+## Deployment
 
-- **Google Cloud Deployment**: The next step is to take this project to the cloud, using Google Cloud to host the agent and ensure it can be accessed globally.
+This project includes a complete CI/CD pipeline using GitHub Actions for automated testing and deployment to Google Cloud Run.
+
+### Quick Deploy
+
+**For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)**
+
+1. **Set up Google Cloud**: Create service account and enable APIs
+2. **Configure GitHub Secrets**: Add GCP credentials to repository secrets
+3. **Push to deploy**:
+   - Push to `staging` branch → deploys to staging environment
+   - Push to `main` branch → deploys to production
+   - Create tag `v*.*.*` → deploys and creates GitHub release
+
+### Local Development
+
+Use the provided Makefile for common tasks:
+
+```bash
+make setup      # Initial setup (install dependencies, create .env template)
+make web        # Run web interface locally
+make check-all  # Run all CI checks locally (lint, security, test)
+make format     # Format code with black and isort
+```
+
+### CI/CD Workflows
+
+- **Continuous Integration**: Runs on every push - linting, security scans, tests
+- **Staging Deployment**: Auto-deploys when pushing to `staging` or `develop` branches
+- **Production Deployment**: Auto-deploys when pushing to `main` or creating version tags
+
+For complete documentation, see `.github/workflows/README.md`
 
 ---
 

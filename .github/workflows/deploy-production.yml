@@ -1,0 +1,207 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  SERVICE_NAME: dev-tutor
+  APP_NAME: dev-tutor-app
+  AGENT_PATH: ./development_tutor
+
+jobs:
+  deploy-production:
+    name: Deploy to Cloud Run Production
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run quick validation
+        run: |
+          echo "🔍 Running pre-deployment validation..."
+          python -m py_compile development_tutor/agent.py
+          python -m py_compile development_tutor/prompt.py
+          echo "✅ Validation passed"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
+
+      - name: Create .env file for deployment
+        run: |
+          cat > development_tutor/.env << EOF
+          GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_CLOUD_LOCATION=${{ secrets.GCP_REGION }}
+          GOOGLE_GENAI_USE_VERTEXAI=${{ secrets.GOOGLE_GENAI_USE_VERTEXAI }}
+          GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
+          TUTOR_MODEL=${{ secrets.TUTOR_MODEL || 'learnlm-1.5-pro-experimental' }}
+          BASE_MODEL=${{ secrets.BASE_MODEL || 'gemini-2.0-flash-thinking-exp-01-21' }}
+          EOF
+
+      - name: Deploy to Cloud Run (Production)
+        id: deploy
+        run: |
+          echo "🚀 Deploying to production environment..."
+
+          adk deploy cloud_run \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --region=${{ secrets.GCP_REGION }} \
+            --service_name=${{ env.SERVICE_NAME }} \
+            --app_name=${{ env.APP_NAME }} \
+            --with_ui \
+            ${{ env.AGENT_PATH }}
+
+          # Get the service URL
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --platform managed \
+            --region ${{ secrets.GCP_REGION }} \
+            --format 'value(status.url)')
+
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "✅ Production deployment complete: $SERVICE_URL"
+
+      - name: Run smoke tests
+        run: |
+          echo "🧪 Running production smoke tests..."
+          SERVICE_URL="${{ steps.deploy.outputs.url }}"
+
+          # Wait for service to be ready
+          sleep 15
+
+          # Basic health check
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL" || echo "000")
+
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]; then
+            echo "✅ Smoke test passed - Service is responding (HTTP $HTTP_CODE)"
+          else
+            echo "❌ Smoke test failed - Service returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Create deployment record
+        if: success()
+        run: |
+          # Create a deployment tag for tracking
+          DEPLOYMENT_TAG="deploy-$(date +%Y%m%d-%H%M%S)"
+
+          echo "📝 Recording deployment: $DEPLOYMENT_TAG"
+          echo "Commit: ${{ github.sha }}"
+          echo "Deployed by: ${{ github.actor }}"
+          echo "Service URL: ${{ steps.deploy.outputs.url }}"
+
+      - name: Create deployment summary
+        if: always()
+        run: |
+          echo "## 🚀 Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** ${{ env.SERVICE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ secrets.GCP_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** ${{ steps.deploy.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch/Tag:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "### ✅ Deployment Status: SUCCESS" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Deployment Status: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Quick Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [🌐 Open Application](${{ steps.deploy.outputs.url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [📊 View Logs](https://console.cloud.google.com/run/detail/${{ secrets.GCP_REGION }}/${{ env.SERVICE_NAME }}/logs?project=${{ secrets.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [⚙️ Cloud Run Console](https://console.cloud.google.com/run?project=${{ secrets.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [📈 Monitoring](https://console.cloud.google.com/run/detail/${{ secrets.GCP_REGION }}/${{ env.SERVICE_NAME }}/metrics?project=${{ secrets.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Production deployment successful!"
+            echo "🎉 Your application is now live at: ${{ steps.deploy.outputs.url }}"
+          else
+            echo "❌ Production deployment failed!"
+            echo "Please check the logs for details."
+            exit 1
+          fi
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Get the previous tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "## Changes since $PREVIOUS_TAG" > release_notes.md
+            echo "" >> release_notes.md
+            git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s (%h)" >> release_notes.md
+          else
+            echo "## Initial Release" > release_notes.md
+            echo "" >> release_notes.md
+            echo "First production deployment of Development Tutor Agent" >> release_notes.md
+          fi
+
+          echo "" >> release_notes.md
+          echo "## Deployment Information" >> release_notes.md
+          echo "- **Service:** ${{ env.SERVICE_NAME }}" >> release_notes.md
+          echo "- **Region:** ${{ secrets.GCP_REGION }}" >> release_notes.md
+          echo "- **Deployed:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> release_notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

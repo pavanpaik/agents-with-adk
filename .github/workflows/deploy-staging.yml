@@ -1,0 +1,128 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - staging
+      - develop
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  SERVICE_NAME: dev-tutor-staging
+  APP_NAME: dev-tutor-app-staging
+  AGENT_PATH: ./development_tutor
+
+jobs:
+  deploy-staging:
+    name: Deploy to Cloud Run Staging
+    runs-on: ubuntu-latest
+
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
+
+      - name: Create .env file for deployment
+        run: |
+          cat > development_tutor/.env << EOF
+          GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_CLOUD_LOCATION=${{ secrets.GCP_REGION }}
+          GOOGLE_GENAI_USE_VERTEXAI=${{ secrets.GOOGLE_GENAI_USE_VERTEXAI }}
+          GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
+          TUTOR_MODEL=${{ secrets.TUTOR_MODEL || 'learnlm-1.5-pro-experimental' }}
+          BASE_MODEL=${{ secrets.BASE_MODEL || 'gemini-2.0-flash-thinking-exp-01-21' }}
+          EOF
+
+      - name: Deploy to Cloud Run (Staging)
+        id: deploy
+        run: |
+          echo "🚀 Deploying to staging environment..."
+
+          adk deploy cloud_run \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --region=${{ secrets.GCP_REGION }} \
+            --service_name=${{ env.SERVICE_NAME }} \
+            --app_name=${{ env.APP_NAME }} \
+            --with_ui \
+            ${{ env.AGENT_PATH }}
+
+          # Get the service URL
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --platform managed \
+            --region ${{ secrets.GCP_REGION }} \
+            --format 'value(status.url)')
+
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "✅ Staging deployment complete: $SERVICE_URL"
+
+      - name: Run smoke tests
+        run: |
+          echo "🧪 Running smoke tests..."
+          SERVICE_URL="${{ steps.deploy.outputs.url }}"
+
+          # Wait for service to be ready
+          sleep 10
+
+          # Basic health check
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL" || echo "000")
+
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]; then
+            echo "✅ Smoke test passed - Service is responding (HTTP $HTTP_CODE)"
+          else
+            echo "⚠️ Warning: Service returned HTTP $HTTP_CODE"
+          fi
+
+      - name: Create deployment summary
+        if: always()
+        run: |
+          echo "## 🚀 Staging Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Staging" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** ${{ env.SERVICE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ secrets.GCP_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** ${{ steps.deploy.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Quick Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Open Application](${{ steps.deploy.outputs.url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [View Logs](https://console.cloud.google.com/run/detail/${{ secrets.GCP_REGION }}/${{ env.SERVICE_NAME }}/logs?project=${{ secrets.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Cloud Run Console](https://console.cloud.google.com/run?project=${{ secrets.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Staging deployment successful!"
+          else
+            echo "❌ Staging deployment failed!"
+            exit 1
+          fi

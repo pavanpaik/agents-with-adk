@@ -1,0 +1,28 @@
+[bandit]
+# Bandit security linter configuration
+
+# Directories to exclude from scanning
+exclude_dirs = [
+    '/tests/',
+    '/eval/',
+    '/.venv/',
+    '/venv/',
+    '/env/',
+    '/.git/',
+    '/.github/',
+    '/deployment/',
+]
+
+# Tests to skip (comma-separated list of test IDs)
+skips = [
+    # B101: assert_used - asserts are fine in test code
+    'B101',
+]
+
+# Severity level: LOW, MEDIUM, HIGH
+# Only report issues of severity MEDIUM or higher
+severity = MEDIUM
+
+# Confidence level: LOW, MEDIUM, HIGH
+# Only report issues with confidence MEDIUM or higher
+confidence = MEDIUM
