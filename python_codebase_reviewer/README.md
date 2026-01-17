@@ -214,6 +214,57 @@ Each finding includes:
 - Testing best practices (pytest fixtures, mocking)
 - Modern Python features (3.10+ match/case, 3.11+ exception groups)
 
+## Evaluation & Testing
+
+### Comprehensive Eval Suite
+
+The system includes a production-ready evaluation suite with **63 test cases** across all agents:
+
+| Agent | Test Cases | Coverage |
+|-------|-----------|----------|
+| Security Reviewer | 16 | OWASP Top 10, Python vulnerabilities |
+| Architecture Reviewer | 8 | SOLID principles, design patterns |
+| Code Quality Reviewer | 8 | PEP standards, Pythonic idioms |
+| Performance Reviewer | 8 | Algorithm complexity, memory, DB queries |
+| Python Expert | 8 | Standard library, frameworks, modern Python |
+| Orchestrator | 7 | Multi-issue code, agent coordination |
+
+### Running Evaluations
+
+```bash
+# Run all evaluations
+python eval/run_all_evals.py
+
+# Run specific agent eval
+pytest eval/test_eval.py::test_security_reviewer
+
+# Run all pytest evals
+pytest eval/test_eval.py
+```
+
+### Evaluation Metrics
+
+- **Precision**: ≥ 90% (few false positives)
+- **Recall**: ≥ 85% for CRITICAL/HIGH (catch serious issues)
+- **Severity Accuracy**: ≥ 90% (correct severity)
+- **F1 Score**: ≥ 0.85 (balanced metric)
+
+### Test Coverage
+
+**True Positives**: Real vulnerabilities and issues
+- SQL injection, command injection, insecure deserialization
+- SOLID violations, God classes, circular dependencies
+- PEP violations, code smells, non-Pythonic patterns
+- O(n²) algorithms, N+1 queries, memory inefficiency
+- Missing standard library usage, framework anti-patterns
+
+**True Negatives**: Clean code that should NOT be flagged
+- Secure, well-written code
+- Test fixtures (not "hardcoded secrets")
+- Acceptable design choices
+
+See `eval/README.md` for detailed documentation.
+
 ## Customization
 
 ### Adjusting Severity Thresholds

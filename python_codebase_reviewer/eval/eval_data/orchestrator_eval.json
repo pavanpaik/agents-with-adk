@@ -1,0 +1,159 @@
+[
+  {
+    "query": "Review this Flask application:\n```python\nfrom flask import Flask, request\nimport pickle\nimport os\n\napp = Flask(__name__)\napp.config['SECRET_KEY'] = 'hardcoded-secret-key'\napp.config['DEBUG'] = True\n\n@app.route('/search')\ndef search():\n    query = request.args.get('q')\n    sql = f\"SELECT * FROM products WHERE name LIKE '%{query}%'\"\n    results = db.execute(sql).fetchall()\n    return results\n\n@app.route('/upload', methods=['POST'])\ndef upload():\n    data = request.get_data()\n    obj = pickle.loads(data)\n    return obj.save()\n\nif __name__ == '__main__':\n    app.run(host='0.0.0.0', debug=True)\n```",
+    "expected_tool_use": [
+      "security_reviewer_tool",
+      "code_quality_reviewer_tool"
+    ],
+    "reference": {
+      "must_detect_by_category": {
+        "SECURITY": [
+          {"severity": "CRITICAL", "issue": "SQL Injection"},
+          {"severity": "CRITICAL", "issue": "Insecure Deserialization"},
+          {"severity": "HIGH", "issue": "Hardcoded Secret Key"},
+          {"severity": "MEDIUM", "issue": "Debug Mode"}
+        ],
+        "QUALITY": [
+          {"severity": "LOW", "issue": "Missing type hints"}
+        ]
+      },
+      "min_findings": 4,
+      "must_call_agents": ["security_reviewer"],
+      "should_prioritize": "SECURITY findings first"
+    }
+  },
+  {
+    "query": "Review this user management system:\n```python\nclass UserManager:\n    def create_user(self, username, email, password):\n        if not username:\n            raise ValueError(\"Username required\")\n\n        import hashlib\n        hashed = hashlib.md5(password.encode()).hexdigest()\n\n        user = User(username=username, email=email, password=hashed)\n        db.session.add(user)\n        db.session.commit()\n\n        send_email(email, \"Welcome!\")\n\n        log_file = open('users.log', 'a')\n        log_file.write(f\"User {username} created\\n\")\n        log_file.close()\n\n        return user\n\n    def get_all_users(self):\n        users = []\n        for id in range(1, 10000):\n            user = db.execute(f\"SELECT * FROM users WHERE id={id}\").fetchone()\n            if user:\n                users.append(user)\n        return users\n```",
+    "expected_tool_use": [
+      "security_reviewer_tool",
+      "architecture_reviewer_tool",
+      "performance_reviewer_tool",
+      "python_expert_tool"
+    ],
+    "reference": {
+      "must_detect_by_category": {
+        "SECURITY": [
+          {"severity": "CRITICAL", "issue": "Weak password hashing (MD5)"},
+          {"severity": "CRITICAL", "issue": "SQL injection in get_all_users"}
+        ],
+        "ARCHITECTURE": [
+          {"severity": "MEDIUM", "issue": "Single Responsibility Principle violation"}
+        ],
+        "PERFORMANCE": [
+          {"severity": "HIGH", "issue": "N+1 query problem"}
+        ],
+        "PYTHONIC": [
+          {"severity": "MEDIUM", "issue": "Manual file handling instead of context manager"}
+        ]
+      },
+      "min_findings": 5,
+      "must_call_agents": ["security_reviewer", "architecture_reviewer", "performance_reviewer"],
+      "should_aggregate": "findings from all reviewers"
+    }
+  },
+  {
+    "query": "Review this data processing code:\n```python\ndef find_duplicates(data):\n    duplicates = []\n    for i in range(len(data)):\n        for j in range(i + 1, len(data)):\n            if data[i] == data[j] and data[i] not in duplicates:\n                duplicates.append(data[i])\n    return duplicates\n\ndef process_file(filename):\n    file = open(filename)\n    try:\n        lines = file.readlines()\n        result = []\n        for i in range(len(lines)):\n            if lines[i].strip() != \"\":\n                result.append(lines[i].upper())\n        return result\n    finally:\n        file.close()\n```",
+    "expected_tool_use": [
+      "performance_reviewer_tool",
+      "code_quality_reviewer_tool",
+      "python_expert_tool"
+    ],
+    "reference": {
+      "must_detect_by_category": {
+        "PERFORMANCE": [
+          {"severity": "HIGH", "issue": "O(n²) algorithm"},
+          {"severity": "HIGH", "issue": "Loading entire file into memory"}
+        ],
+        "QUALITY": [
+          {"severity": "MEDIUM", "issue": "Non-Pythonic iteration"}
+        ],
+        "PYTHONIC": [
+          {"severity": "MEDIUM", "issue": "Manual file handling instead of context manager"}
+        ]
+      },
+      "min_findings": 4,
+      "must_call_agents": ["performance_reviewer", "python_expert"]
+    }
+  },
+  {
+    "query": "Review this discount calculator:\n```python\nclass DiscountCalculator:\n    def calculate_discount(self, customer_type, amount):\n        if customer_type == \"regular\":\n            return amount * 0.05\n        elif customer_type == \"premium\":\n            return amount * 0.10\n        elif customer_type == \"vip\":\n            return amount * 0.20\n        else:\n            return 0\n```",
+    "expected_tool_use": [
+      "architecture_reviewer_tool",
+      "code_quality_reviewer_tool"
+    ],
+    "reference": {
+      "must_detect_by_category": {
+        "ARCHITECTURE": [
+          {"severity": "MEDIUM", "issue": "Open/Closed Principle violation"}
+        ],
+        "QUALITY": [
+          {"severity": "LOW", "issue": "Magic numbers"}
+        ]
+      },
+      "min_findings": 2,
+      "must_call_agents": ["architecture_reviewer"],
+      "should_suggest": "Strategy pattern"
+    }
+  },
+  {
+    "query": "Review this clean, well-written code (should have minimal or no findings):\n```python\nfrom dataclasses import dataclass\nfrom typing import List, Optional\nfrom functools import lru_cache\nfrom pathlib import Path\n\n@dataclass\nclass Article:\n    \"\"\"Represents an article in the system.\"\"\"\n    title: str\n    content: str\n    author: str\n\n    def word_count(self) -> int:\n        \"\"\"Calculate word count.\"\"\"\n        return len(self.content.split())\n\nclass ArticleRepository:\n    \"\"\"Repository for article storage.\"\"\"\n\n    def __init__(self, data_dir: Path):\n        self.data_dir = data_dir\n\n    def load_all(self) -> List[Article]:\n        \"\"\"Load all articles from data directory.\"\"\"\n        return [\n            self._load_article(path)\n            for path in self.data_dir.glob('*.txt')\n        ]\n\n    def _load_article(self, path: Path) -> Article:\n        \"\"\"Load a single article from file.\"\"\"\n        return Article(\n            title=path.stem,\n            content=path.read_text(),\n            author=\"Unknown\"\n        )\n```",
+    "expected_tool_use": [
+      "code_quality_reviewer_tool",
+      "python_expert_tool"
+    ],
+    "reference": {
+      "must_detect": [],
+      "should_not_flag": [
+        "good architecture",
+        "type hints present",
+        "docstrings present",
+        "modern Python features"
+      ],
+      "max_findings": 1,
+      "note": "This is well-written code - should have zero or very minimal findings"
+    }
+  },
+  {
+    "query": "Perform a comprehensive security-focused review of this authentication system:\n```python\nimport random\nfrom flask import Flask, request, session\n\napp = Flask(__name__)\nSECRET_KEY = \"my-secret-key\"\n\n@app.route('/login', methods=['POST'])\ndef login():\n    username = request.form['username']\n    password = request.form['password']\n\n    query = f\"SELECT * FROM users WHERE username='{username}' AND password='{password}'\"\n    user = db.execute(query).fetchone()\n\n    if user:\n        session['token'] = str(random.randint(10000, 99999))\n        return {'status': 'success', 'user_data': user}\n\n    return {'status': 'failed'}\n\n@app.route('/api/user/<user_id>')\ndef get_user(user_id):\n    query = \"SELECT * FROM users WHERE id = \" + user_id\n    user = db.execute(query).fetchone()\n    return user\n```",
+    "expected_tool_use": [
+      "security_reviewer_tool"
+    ],
+    "reference": {
+      "must_detect_by_category": {
+        "SECURITY": [
+          {"severity": "CRITICAL", "issue": "SQL Injection in login"},
+          {"severity": "CRITICAL", "issue": "SQL Injection in get_user"},
+          {"severity": "HIGH", "issue": "Weak random for session token"},
+          {"severity": "HIGH", "issue": "Hardcoded secret key"},
+          {"severity": "MEDIUM", "issue": "Exposing full user data"}
+        ]
+      },
+      "min_findings": 5,
+      "must_call_agents": ["security_reviewer"],
+      "should_prioritize": "CRITICAL findings",
+      "note": "User explicitly requested security-focused review"
+    }
+  },
+  {
+    "query": "Review this Django view for all possible issues:\n```python\nfrom django.http import JsonResponse\nfrom .models import Article, Comment\n\ndef article_list(request):\n    articles = Article.objects.all()\n\n    result = []\n    for article in articles:\n        comments = []\n        for comment in article.comments.all():\n            comments.append({\n                'text': comment.text,\n                'author': comment.author.username\n            })\n\n        result.append({\n            'title': article.title,\n            'author': article.author.name,\n            'category': article.category.name,\n            'comments': comments\n        })\n\n    return JsonResponse({'articles': result})\n```",
+    "expected_tool_use": [
+      "performance_reviewer_tool",
+      "python_expert_tool",
+      "code_quality_reviewer_tool"
+    ],
+    "reference": {
+      "must_detect_by_category": {
+        "PERFORMANCE": [
+          {"severity": "HIGH", "issue": "Multiple N+1 query problems"}
+        ],
+        "PYTHONIC": [
+          {"severity": "MEDIUM", "issue": "Missing select_related/prefetch_related"},
+          {"severity": "LOW", "issue": "List comprehension opportunity"}
+        ]
+      },
+      "min_findings": 2,
+      "must_call_agents": ["performance_reviewer", "python_expert"],
+      "should_suggest": "Django ORM optimizations"
+    }
+  }
+]
