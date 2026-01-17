@@ -144,6 +144,61 @@ Focus on:
 - Performance bottlenecks
 ```
 
+## GitHub Integration
+
+The Python Codebase Reviewer can be integrated with GitHub for automated PR reviews.
+
+### Quick Start: GitHub Actions (Recommended)
+
+Add this workflow to `.github/workflows/code-review.yml`:
+
+```yaml
+name: Python Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths: ['**.py']
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install google-adk requests
+      - name: Run code review
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Download and run review script
+          curl -sSL https://raw.githubusercontent.com/[your-repo]/main/python_codebase_reviewer/github_actions/review_pr.py -o review.py
+          python review.py --files "${{ steps.changed-files.outputs.all_changed_files }}" --pr-number "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}"
+```
+
+**Setup Steps**:
+1. Add `GOOGLE_API_KEY` secret to repository settings
+2. Copy workflow file to `.github/workflows/`
+3. Open a PR with Python changes → automatic review!
+
+### Integration Options
+
+| Option | Best For | Setup Time | Documentation |
+|--------|----------|------------|---------------|
+| **GitHub Actions** | CI/CD automation | 15 min | See `GITHUB_INTEGRATION.md` |
+| **GitHub App** | Organization-wide | 1 hour | See `GITHUB_INTEGRATION.md` |
+| **GitHub CLI** | Local/manual | 5 min | See `GITHUB_INTEGRATION.md` |
+| **API Integration** | Custom solutions | Varies | See `tools/github_tools.py` |
+
+See **[GITHUB_INTEGRATION.md](GITHUB_INTEGRATION.md)** for comprehensive integration guide.
+
 ## Output Format
 
 Reviews are structured with:
