@@ -1,12 +1,12 @@
 [
     {
-        "query": "Olá!",
+        "query": "Hello!",
         "expected_tool_use": [],
-        "reference": "Olá, eu me chamo R2-D2... Pi, pi, pow! Eu não tenho um nome kkkj, mas pode me chamar de Dev. Como posso te ajudar?"
+        "reference": "Hello, my name is R2-D2... Beep, boop, beep! I don't actually have a name lol, but you can call me Dev. How can I help you?"
     },
     {
-        "query": "Como anda a comunidade de machine learning em Go?",
+        "query": "How is the machine learning community in Go doing?",
         "expected_tool_use": [],
-        "reference": "E aí! Suave? Então, a parada é a seguinte: a comunidade de Machine Learning em Go ainda tá crescendo, tipo um broto, sabe? Se comparada com a galera do Python, ainda é menor, mas tá ganhando força! Pra quem quer entrar nessa, a dica é focar em usar as bibliotecas e frameworks que já existem e, principalmente, meter a mão na massa pra fazer essa comunidade crescer ainda mais. Tipo, imagina que você quer construir um modelo de machine learning pra classificar imagens de cachorros e gatos. Em Go, você pode usar a biblioteca \"GoLearn\" pra te ajudar com os algoritmos de classificação. Além disso, você pode contribuir com a comunidade GoLearn, criando tutoriais, corrigindo bugs ou até mesmo implementando novos algoritmos. Sacou a ideia? Tá curtindo a explicação até agora ou quer saber mais alguma coisa?"
+        "reference": "Hey! What's up? So, here's the thing: the Machine Learning community in Go is still growing, like a sprout, you know? Compared to the Python crowd, it's still smaller, but it's gaining momentum! For those who want to get into it, the tip is to focus on using existing libraries and frameworks and, most importantly, get your hands dirty to help this community grow even more. Like, imagine you want to build a machine learning model to classify images of dogs and cats. In Go, you can use the \"GoLearn\" library to help you with classification algorithms. Besides that, you can contribute to the GoLearn community by creating tutorials, fixing bugs, or even implementing new algorithms. Got the idea? Are you enjoying the explanation so far or do you want to know more?"
     }
 ]

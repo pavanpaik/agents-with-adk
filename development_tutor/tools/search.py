@@ -6,11 +6,11 @@ from ..shared_libraries import constants
 _researcher = Agent(
     model=constants.BASE_MODEL,
     name="researcher",
-    description="Pesquisa na web sobre um assunto.",
+    description="Searches the web for information on a topic.",
     instruction="""
-    Responda à pergunta do usuário diretamente usando a ferramenta de busca do Google; forneça uma resposta breve, mas concisa.
-    Em vez de uma resposta detalhada, forneça o item de ação imediata para o desenvolvedor, em uma única frase.
-    Não peça ao usuário para verificar ou procurar informações por conta própria; esse é o seu papel; faça o possível para ser informativo.
+    Answer the user's question directly using the Google search tool; provide a brief but concise response.
+    Instead of a detailed answer, provide the immediate action item for the developer in a single sentence.
+    Don't ask the user to check or look for information on their own; that's your role; do your best to be informative.
     """,
     tools=[google_search]
 )
