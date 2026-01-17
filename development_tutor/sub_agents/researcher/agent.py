@@ -6,7 +6,7 @@ from ...tools.search import google_search_grounding
 researcher = Agent(
     model=constants.BASE_MODEL,
     name="researcher",
-    description="Pesquisa na web sobre um assunto.",
+    description="Searches the web for information on a topic.",
     instruction=prompt.RESEARCHER_PROMPT,
     tools=[google_search_grounding]
 )

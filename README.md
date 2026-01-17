@@ -1,44 +1,44 @@
 
 # Development Tutor Agent
 
-O **Development Tutor Agent** é um assistente virtual baseado em inteligência artificial, projetado para ajudar desenvolvedores na solução de problemas técnicos e fornecer assistência sobre temas de programação. O agente é composto por subagentes especializados, como o **Researcher**, que realiza buscas na web para garantir que as informações fornecidas estão sempre atualizadas. Este projeto foi desenvolvido com Google ADK (Agent Development Kit)
+The **Development Tutor Agent** is an AI-powered virtual assistant designed to help developers solve technical problems and provide assistance on programming topics. The agent consists of specialized sub-agents, such as the **Researcher**, which performs web searches to ensure that the information provided is always up-to-date. This project was developed using Google ADK (Agent Development Kit).
 
-##  O que é ADK?
+##  What is ADK?
 
-O Agent Development Kit (ADK) é uma estrutura flexível e modular para o desenvolvimento e a implantação de agentes de IA. O ADK pode ser usado com LLMs populares e ferramentas de IA generativa de código aberto e foi projetado com foco na integração com o ecossistema do Google e os modelos Gemini. O ADK facilita o início do uso de agentes simples, impulsionados pelos modelos Gemini e pelas ferramentas de IA do Google, ao mesmo tempo que fornece o controle e a estrutura necessários para arquiteturas e orquestrações de agentes mais complexas.
+The Agent Development Kit (ADK) is a flexible and modular framework for developing and deploying AI agents. ADK can be used with popular LLMs and open-source generative AI tools, and was designed with a focus on integration with the Google ecosystem and Gemini models. ADK makes it easy to get started with simple agents powered by Gemini models and Google AI tools, while providing the control and structure needed for more complex agent architectures and orchestrations.
 
-Para saber mais: https://google.github.io/adk-docs/
+Learn more: https://google.github.io/adk-docs/
 
-## Funcionalidades
+## Features
 
-- **Researcher**: Realiza pesquisas em tempo real na web sobre temas relacionados ao desenvolvimento e programação, garantindo que as respostas sejam sempre baseadas nas informações mais recentes.
-- **Development Tutor**: Instrui o usuário, guiando-o em uma jornada de aprendizado técnico com foco em linguagens de programação, frameworks e ferramentas.
+- **Researcher**: Performs real-time web searches on topics related to development and programming, ensuring that responses are always based on the most recent information.
+- **Development Tutor**: Instructs the user, guiding them on a technical learning journey focused on programming languages, frameworks, and tools.
 
-## Arquitetura
+## Architecture
 
-O projeto é composto por um conjunto de agentes que colaboram entre si para fornecer respostas completas e detalhadas. O fluxo de trabalho do agente principal inclui:
+The project consists of a set of agents that collaborate with each other to provide complete and detailed responses. The main agent's workflow includes:
 
-1. **Greetings**: O agente se apresenta ao usuário de forma jocosa e coleta informações sobre a solicitação.
-2. **Search**: O agente realiza uma busca em tempo real, utilizando o subagente **Researcher**, para garantir que as informações fornecidas estão atualizadas.
-3. **Tone**: Ajuste do tom de resposta para um estilo técnico, amigável e jovial.
-4. **Key Constraints**: Respostas direcionadas para solucionar problemas de forma prática e eficiente.
+1. **Greetings**: The agent introduces itself to the user in a playful manner and collects information about the request.
+2. **Search**: The agent performs a real-time search using the **Researcher** sub-agent to ensure that the information provided is up-to-date.
+3. **Tone**: Adjusts the response tone to a technical, friendly, and jovial style.
+4. **Key Constraints**: Responses aimed at solving problems in a practical and efficient manner.
 
-## Como Rodar
+## How to Run
 
-### Pré-requisitos
+### Prerequisites
 
-- Python 3.8 ou superior
-- Dependências listadas no arquivo `requirements.txt`
+- Python 3.8 or higher
+- Dependencies listed in the `requirements.txt` file
 
-### Passos para execução
+### Execution Steps
 
-1. Clone o repositório:
+1. Clone the repository:
 
    ```bash
    git clone git@github.com:ju4nv1e1r4/agents-with-adk.git
    ```
 
-2. Crie um ambiente virtual e ative-o:
+2. Create and activate a virtual environment:
 
    ```bash
    python3 -m venv env
@@ -46,52 +46,52 @@ O projeto é composto por um conjunto de agentes que colaboram entre si para for
    env\Scripts\activate     # Windows
    ```
 
-3. Instale as dependências:
+3. Install the dependencies:
 
    ```bash
    pip install -r requirements.txt
    ```
 
-4. Configure as variáveis de ambiente no arquivo `.env`:
+4. Configure the environment variables in the `.env` file:
 
    ```bash
       # If using Gemini via Google AI Studio
     GOOGLE_GENAI_USE_VERTEXAI="False"
     GOOGLE_API_KEY="paste-your-actual-key-here"
-    
-    # # If using Gemini via Vertex AI on Google CLoud
+
+    # # If using Gemini via Vertex AI on Google Cloud
     # GOOGLE_CLOUD_PROJECT="your-project-id"
     # GOOGLE_CLOUD_LOCATION="your-location" #e.g. us-central1
     # GOOGLE_GENAI_USE_VERTEXAI="True"
-   
+
    ```
 
-   > Caso esteja utilizando o Google Cloud, descomente e configure as variáveis apropriadas para o Vertex AI.
+   > If you are using Google Cloud, uncomment and configure the appropriate variables for Vertex AI.
 
-5. Para rodar o agente no terminal, use o seguinte comando:
+5. To run the agent in the terminal, use the following command:
 
    ```bash
    adk run development_tutor/
    ```
 
-6. Para rodar a interface web localmente:
+6. To run the web interface locally:
 
    ```bash
    adk web
    ```
 
-   Acesse a aplicação em [http://localhost:8000](http://localhost:8000).
+   Access the application at [http://localhost:8000](http://localhost:8000).
 
-## Como Funciona
+## How It Works
 
-1. O **Development Tutor** começa uma conversa com o usuário, perguntando como pode ajudar.
-2. O subagente **Researcher** realiza uma pesquisa na web para garantir que as respostas estejam sempre atualizadas.
-3. O **Development Tutor** fornece respostas com exemplos e explicações detalhadas.
-4. O agente ajusta seu tom para ser técnico, amigável e jovial, garantindo uma experiência de aprendizado leve e informativa.
+1. The **Development Tutor** starts a conversation with the user, asking how it can help.
+2. The **Researcher** sub-agent performs a web search to ensure that responses are always up-to-date.
+3. The **Development Tutor** provides responses with examples and detailed explanations.
+4. The agent adjusts its tone to be technical, friendly, and jovial, ensuring a light and informative learning experience.
 
-Seguem alguns prints do funcionamento no diretório img/.
+Screenshots of the system in action can be found in the img/ directory.
 
-## Estrutura do Projeto
+## Project Structure
 
 ```
 .
@@ -108,10 +108,10 @@ Seguem alguns prints do funcionamento no diretório img/.
 └── README.md
 ```
 
-## Próximos Passos
+## Next Steps
 
-- **Deploy no Google Cloud**: O próximo passo é levar esse projeto para a nuvem, utilizando o Google Cloud para hospedar o agente e garantir que ele possa ser acessado globalmente.
-  
+- **Google Cloud Deployment**: The next step is to take this project to the cloud, using Google Cloud to host the agent and ensure it can be accessed globally.
+
 ---
 
-Este projeto foi desenvolvido com foco em ajudar desenvolvedores de todas as áreas a encontrar soluções rápidas e precisas para seus problemas de programação.
+This project was developed with a focus on helping developers from all areas find quick and accurate solutions to their programming problems.
