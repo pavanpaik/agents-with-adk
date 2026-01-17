@@ -1,0 +1,128 @@
+[
+  {
+    "query": "Review this for better standard library usage:\n```python\ndef group_by_category(items):\n    groups = {}\n    for item in items:\n        if item.category not in groups:\n            groups[item.category] = []\n        groups[item.category].append(item)\n    return groups\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "PYTHONIC",
+          "severity": "LOW",
+          "category": "Standard Library",
+          "issue": "Manual grouping instead of defaultdict"
+        }
+      ],
+      "must_suggest": ["defaultdict", "collections"]
+    }
+  },
+  {
+    "query": "Review this file handling:\n```python\nimport os\n\ndef read_config(base_dir, filename):\n    path = os.path.join(base_dir, 'config', filename)\n    if os.path.exists(path):\n        with open(path) as f:\n            return f.read()\n    return None\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "PYTHONIC",
+          "severity": "LOW",
+          "category": "Modern Python",
+          "issue": "Using os.path instead of pathlib"
+        }
+      ],
+      "must_suggest": ["pathlib", "Path"]
+    }
+  },
+  {
+    "query": "Review this Django query:\n```python\ndef get_articles():\n    articles = Article.objects.all()\n    for article in articles:\n        print(article.author.name)\n        print(article.category.name)\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "PYTHONIC",
+          "severity": "MEDIUM",
+          "category": "Django",
+          "issue": "Missing select_related for ForeignKey"
+        }
+      ],
+      "must_suggest": ["select_related", "eager loading"]
+    }
+  },
+  {
+    "query": "Review this context manager usage:\n```python\ndef write_data(filename, data):\n    file = open(filename, 'w')\n    try:\n        file.write(data)\n    finally:\n        file.close()\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "PYTHONIC",
+          "severity": "MEDIUM",
+          "category": "Pythonic Idioms",
+          "issue": "Manual resource management instead of context manager"
+        }
+      ],
+      "must_suggest": ["with statement", "context manager"]
+    }
+  },
+  {
+    "query": "Review this async code:\n```python\nimport asyncio\nimport requests\n\nasync def fetch_data(url):\n    response = requests.get(url)  # Blocking!\n    return response.json()\n\nasync def main():\n    urls = ['url1', 'url2', 'url3']\n    results = []\n    for url in urls:\n        data = await fetch_data(url)\n        results.append(data)\n    return results\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "PYTHONIC",
+          "severity": "HIGH",
+          "category": "Async/Await",
+          "issue": "Blocking call in async function"
+        },
+        {
+          "type": "PYTHONIC",
+          "severity": "MEDIUM",
+          "category": "Async/Await",
+          "issue": "Sequential await instead of gather"
+        }
+      ],
+      "must_suggest": ["aiohttp", "asyncio.gather"]
+    }
+  },
+  {
+    "query": "Review this for modern Python features:\n```python\ndef format_message(name, age, city):\n    return \"Name: {}, Age: {}, City: {}\".format(name, age, city)\n\nclass Point:\n    def __init__(self, x, y):\n        self.x = x\n        self.y = y\n\n    def __repr__(self):\n        return f\"Point({self.x}, {self.y})\"\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "PYTHONIC",
+          "severity": "LOW",
+          "category": "Modern Python",
+          "issue": "Using .format() instead of f-strings"
+        },
+        {
+          "type": "PYTHONIC",
+          "severity": "LOW",
+          "category": "Modern Python",
+          "issue": "Could use dataclass"
+        }
+      ],
+      "must_suggest": ["f-string", "dataclass"]
+    }
+  },
+  {
+    "query": "Review this itertools opportunity:\n```python\ndef flatten(nested_list):\n    result = []\n    for sublist in nested_list:\n        for item in sublist:\n            result.append(item)\n    return result\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "PYTHONIC",
+          "severity": "LOW",
+          "category": "Standard Library",
+          "issue": "Manual flattening instead of itertools.chain"
+        }
+      ],
+      "must_suggest": ["itertools.chain", "chain.from_iterable"]
+    }
+  },
+  {
+    "query": "Review this expert-level Python code (should have minimal findings):\n```python\nfrom functools import lru_cache\nfrom pathlib import Path\nfrom collections import defaultdict\nfrom typing import List, Dict\nfrom dataclasses import dataclass\n\n@dataclass\nclass Article:\n    title: str\n    content: str\n\ndef load_articles(data_dir: Path) -> List[Article]:\n    \"\"\"Load articles from data directory.\"\"\"\n    return [\n        Article(title=p.stem, content=p.read_text())\n        for p in data_dir.glob('*.txt')\n    ]\n\n@lru_cache(maxsize=128)\ndef analyze(text: str) -> Dict[str, int]:\n    \"\"\"Analyze text with caching.\"\"\"\n    from collections import Counter\n    return dict(Counter(text.split()))\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [],
+      "should_not_flag": ["expert Python", "modern features", "good practices"],
+      "max_findings": 0
+    }
+  }
+]

@@ -1,0 +1,116 @@
+[
+  {
+    "query": "Review this class for architectural issues:\n```python\nclass UserManager:\n    def create_user(self, username, email, password):\n        # Validate\n        if not username:\n            raise ValueError(\"Username required\")\n\n        # Hash password\n        import hashlib\n        hashed = hashlib.sha256(password.encode()).hexdigest()\n\n        # Save to database\n        user = User(username=username, email=email, password=hashed)\n        db.session.add(user)\n        db.session.commit()\n\n        # Send email\n        send_email(email, \"Welcome!\")\n\n        # Log\n        with open('log.txt', 'a') as f:\n            f.write(f\"User {username} created\\n\")\n\n        return user\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "ARCHITECTURE",
+          "severity": "MEDIUM",
+          "principle": "Single Responsibility Principle (SRP)",
+          "issue": "Multiple responsibilities in one method"
+        }
+      ],
+      "must_suggest": ["separate concerns", "dependency injection", "separate classes"]
+    }
+  },
+  {
+    "query": "Review this for Open/Closed Principle violations:\n```python\nclass DiscountCalculator:\n    def calculate(self, customer_type, amount):\n        if customer_type == \"regular\":\n            return amount * 0.05\n        elif customer_type == \"premium\":\n            return amount * 0.10\n        elif customer_type == \"vip\":\n            return amount * 0.20\n        else:\n            return 0\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "ARCHITECTURE",
+          "severity": "MEDIUM",
+          "principle": "Open/Closed Principle (OCP)",
+          "issue": "Must modify class to add new discount types"
+        }
+      ],
+      "must_suggest": ["strategy pattern", "polymorphism"]
+    }
+  },
+  {
+    "query": "Review this class hierarchy:\n```python\nclass Rectangle:\n    def __init__(self, width, height):\n        self.width = width\n        self.height = height\n\n    def set_width(self, width):\n        self.width = width\n\n    def set_height(self, height):\n        self.height = height\n\n    def area(self):\n        return self.width * self.height\n\nclass Square(Rectangle):\n    def set_width(self, width):\n        self.width = width\n        self.height = width\n\n    def set_height(self, height):\n        self.width = height\n        self.height = height\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "ARCHITECTURE",
+          "severity": "HIGH",
+          "principle": "Liskov Substitution Principle (LSP)",
+          "issue": "Square breaks Rectangle's behavior"
+        }
+      ],
+      "must_provide_fix": true
+    }
+  },
+  {
+    "query": "Review this interface:\n```python\nfrom abc import ABC, abstractmethod\n\nclass Worker(ABC):\n    @abstractmethod\n    def work(self):\n        pass\n\n    @abstractmethod\n    def eat(self):\n        pass\n\n    @abstractmethod\n    def sleep(self):\n        pass\n\nclass RobotWorker(Worker):\n    def work(self):\n        print(\"Working\")\n\n    def eat(self):\n        pass  # Robots don't eat!\n\n    def sleep(self):\n        pass  # Robots don't sleep!\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "ARCHITECTURE",
+          "severity": "MEDIUM",
+          "principle": "Interface Segregation Principle (ISP)",
+          "issue": "Fat interface forces unnecessary implementations"
+        }
+      ],
+      "must_suggest": ["smaller interfaces", "separate concerns"]
+    }
+  },
+  {
+    "query": "Review this tight coupling:\n```python\nclass OrderProcessor:\n    def __init__(self):\n        self.db = MySQLDatabase()  # Tight coupling!\n        self.payment = StripePayment()\n        self.email = GmailSender()\n\n    def process(self, order):\n        self.db.save(order)\n        self.payment.charge(order.amount)\n        self.email.send(order.user.email, \"Order confirmed\")\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "ARCHITECTURE",
+          "severity": "HIGH",
+          "principle": "Dependency Inversion Principle (DIP)",
+          "issue": "Depends on concrete classes instead of abstractions"
+        }
+      ],
+      "must_suggest": ["dependency injection", "interfaces", "abstractions"]
+    }
+  },
+  {
+    "query": "Review this God class:\n```python\nclass Application:\n    def __init__(self):\n        self.users = []\n        self.products = []\n        self.orders = []\n        self.settings = {}\n\n    def create_user(self, username): pass\n    def delete_user(self, user_id): pass\n    def get_user(self, user_id): pass\n    def update_user(self, user_id, data): pass\n    def create_product(self, name, price): pass\n    def delete_product(self, product_id): pass\n    def create_order(self, user_id, products): pass\n    def process_payment(self, order_id): pass\n    def send_email(self, user_id, message): pass\n    def generate_report(self): pass\n    def export_data(self): pass\n    def import_data(self, data): pass\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "ARCHITECTURE",
+          "severity": "HIGH",
+          "anti_pattern": "God Object",
+          "issue": "Class has too many responsibilities"
+        }
+      ],
+      "must_suggest": ["separate classes", "SRP", "modularity"]
+    }
+  },
+  {
+    "query": "Review this circular dependency:\n```python\n# user.py\nfrom order import Order\n\nclass User:\n    def __init__(self):\n        self.orders = []\n\n    def add_order(self, order: Order):\n        self.orders.append(order)\n\n# order.py\nfrom user import User\n\nclass Order:\n    def __init__(self, user: User):\n        self.user = user\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "ARCHITECTURE",
+          "severity": "HIGH",
+          "anti_pattern": "Circular Dependency",
+          "issue": "Modules import each other"
+        }
+      ],
+      "must_suggest": ["TYPE_CHECKING", "forward references", "restructure"]
+    }
+  },
+  {
+    "query": "Review this well-architected code (should have minimal findings):\n```python\nfrom abc import ABC, abstractmethod\n\nclass PaymentGateway(ABC):\n    @abstractmethod\n    def process_payment(self, amount: float) -> bool:\n        pass\n\nclass StripeGateway(PaymentGateway):\n    def process_payment(self, amount: float) -> bool:\n        # Stripe implementation\n        return True\n\nclass OrderService:\n    def __init__(self, payment_gateway: PaymentGateway):\n        self.payment = payment_gateway\n\n    def process_order(self, order):\n        return self.payment.process_payment(order.amount)\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [],
+      "should_not_flag": ["good architecture", "SOLID principles followed"],
+      "max_findings": 0
+    }
+  }
+]
