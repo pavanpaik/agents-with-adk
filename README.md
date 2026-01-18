@@ -1,117 +1,419 @@
+# Python Codebase Reviewer
 
-# Development Tutor Agent
+**AI-powered code review for Python using a multi-agent system built with Google's Agent Development Kit (ADK).**
 
-The **Development Tutor Agent** is an AI-powered virtual assistant designed to help developers solve technical problems and provide assistance on programming topics. The agent consists of specialized sub-agents, such as the **Researcher**, which performs web searches to ensure that the information provided is always up-to-date. This project was developed using Google ADK (Agent Development Kit).
-
-##  What is ADK?
-
-The Agent Development Kit (ADK) is a flexible and modular framework for developing and deploying AI agents. ADK can be used with popular LLMs and open-source generative AI tools, and was designed with a focus on integration with the Google ecosystem and Gemini models. ADK makes it easy to get started with simple agents powered by Gemini models and Google AI tools, while providing the control and structure needed for more complex agent architectures and orchestrations.
-
-Learn more: https://google.github.io/adk-docs/
-
-## Features
-
-- **Researcher**: Performs real-time web searches on topics related to development and programming, ensuring that responses are always based on the most recent information.
-- **Development Tutor**: Instructs the user, guiding them on a technical learning journey focused on programming languages, frameworks, and tools.
-
-## Architecture
-
-The project consists of a set of agents that collaborate with each other to provide complete and detailed responses. The main agent's workflow includes:
-
-1. **Greetings**: The agent introduces itself to the user in a playful manner and collects information about the request.
-2. **Search**: The agent performs a real-time search using the **Researcher** sub-agent to ensure that the information provided is up-to-date.
-3. **Tone**: Adjusts the response tone to a technical, friendly, and jovial style.
-4. **Key Constraints**: Responses aimed at solving problems in a practical and efficient manner.
-
-## How to Run
-
-### Prerequisites
-
-- Python 3.8 or higher
-- Dependencies listed in the `requirements.txt` file
-
-### Execution Steps
-
-1. Clone the repository:
-
-   ```bash
-   git clone git@github.com:ju4nv1e1r4/agents-with-adk.git
-   ```
-
-2. Create and activate a virtual environment:
-
-   ```bash
-   python3 -m venv env
-   source env/bin/activate  # Linux/macOS
-   env\Scripts\activate     # Windows
-   ```
-
-3. Install the dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Configure the environment variables in the `.env` file:
-
-   ```bash
-      # If using Gemini via Google AI Studio
-    GOOGLE_GENAI_USE_VERTEXAI="False"
-    GOOGLE_API_KEY="paste-your-actual-key-here"
-
-    # # If using Gemini via Vertex AI on Google Cloud
-    # GOOGLE_CLOUD_PROJECT="your-project-id"
-    # GOOGLE_CLOUD_LOCATION="your-location" #e.g. us-central1
-    # GOOGLE_GENAI_USE_VERTEXAI="True"
-
-   ```
-
-   > If you are using Google Cloud, uncomment and configure the appropriate variables for Vertex AI.
-
-5. To run the agent in the terminal, use the following command:
-
-   ```bash
-   adk run development_tutor/
-   ```
-
-6. To run the web interface locally:
-
-   ```bash
-   adk web
-   ```
-
-   Access the application at [http://localhost:8000](http://localhost:8000).
-
-## How It Works
-
-1. The **Development Tutor** starts a conversation with the user, asking how it can help.
-2. The **Researcher** sub-agent performs a web search to ensure that responses are always up-to-date.
-3. The **Development Tutor** provides responses with examples and detailed explanations.
-4. The agent adjusts its tone to be technical, friendly, and jovial, ensuring a light and informative learning experience.
-
-Screenshots of the system in action can be found in the img/ directory.
-
-## Project Structure
-
-```
-.
-├── development_tutor/
-│   ├── agent.py              # main agent
-│   ├── prompt.py             # Prompt base for main agent
-│   ├── shared_libraries/     # Constants
-│   ├── sub_agents/           # SubAgents
-│   │   └── researcher/       # Researcher Agent
-│   │       ├── agent.py
-│   │       ├── prompt.py
-│   └── tools/                # Tools
-│       └── search.py         # Google Search Tool
-└── README.md
-```
-
-## Next Steps
-
-- **Google Cloud Deployment**: The next step is to take this project to the cloud, using Google Cloud to host the agent and ensure it can be accessed globally.
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
-This project was developed with a focus on helping developers from all areas find quick and accurate solutions to their programming problems.
+## 🌟 Overview
+
+Python Codebase Reviewer is an intelligent code review system that uses specialized AI agents to analyze Python code comprehensively. Unlike traditional static analysis tools, it provides contextual, actionable feedback across multiple dimensions:
+
+- **🛡️ Security**: OWASP Top 10 vulnerabilities, injection attacks, secrets detection
+- **🏗️ Architecture**: SOLID principles, design patterns, code organization
+- **✨ Code Quality**: PEP 8/20/257/484, Pythonic idioms, maintainability
+- **⚡ Performance**: Algorithm complexity, database queries, memory usage
+- **🐍 Best Practices**: Modern Python features, framework patterns, stdlib usage
+
+---
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Install core package
+pip install -e .
+
+# Or install with GitHub integration support
+pip install -e ".[github]"
+
+# Or install with development tools
+pip install -e ".[dev]"
+```
+
+### Basic Usage
+
+```python
+from python_codebase_reviewer import root_agent
+
+# Review Python code
+code = """
+def get_user(user_id):
+    query = f"SELECT * FROM users WHERE id = {user_id}"
+    return db.execute(query)
+"""
+
+review = root_agent.run(f"Review this code:\n\n```python\n{code}\n```")
+print(review)
+```
+
+**Output:**
+```
+🔴 CRITICAL: SQL Injection vulnerability detected
+Line 2: Using string formatting for SQL queries allows SQL injection attacks.
+
+Recommended fix:
+def get_user(user_id):
+    query = "SELECT * FROM users WHERE id = ?"
+    return db.execute(query, (user_id,))
+```
+
+---
+
+## 📁 Project Structure
+
+```
+agents-with-adk/
+│
+├── src/python_codebase_reviewer/    # 📦 Core package (pip installable)
+│   ├── agent.py                     # Root orchestrator agent
+│   ├── prompt.py                    # Orchestrator prompt
+│   ├── sub_agents/                  # Specialized review agents
+│   │   ├── security_reviewer/       # Security vulnerability detection
+│   │   ├── architecture_reviewer/   # Architecture & design review
+│   │   ├── code_quality_reviewer/   # Code quality & style review
+│   │   ├── performance_reviewer/    # Performance analysis
+│   │   └── python_expert/           # Python best practices
+│   ├── tools/                       # Utility tools
+│   │   └── github_tools.py         # GitHub API integration
+│   └── shared_libraries/           # Shared utilities
+│       └── constants.py            # Configuration constants
+│
+├── integrations/                    # 🔌 Integration examples (reference code)
+│   ├── INTEGRATION_GUIDE.md        # Decision guide for choosing integration
+│   ├── github_actions/             # Option 1: CI/CD automation
+│   ├── github_app/                 # Option 2: Organization-wide deployment
+│   ├── github_cli/                 # Option 3: Local development
+│   └── direct_api/                 # Option 4: Custom integrations
+│
+├── evals/                          # 📊 Evaluation & benchmarks
+│   ├── run_all_evals.py           # Run all evaluations
+│   ├── test_eval.py               # Evaluation test runner
+│   └── eval_data/                 # 63 test cases across 6 datasets
+│
+├── tests/                          # 🧪 Unit & integration tests
+│   ├── test_github_tools.py       # GitHub API tests
+│   ├── test_github_cli.py         # CLI integration tests
+│   └── test_github_app.py         # GitHub App tests
+│
+├── examples/                       # 💡 Simple usage examples
+│   ├── basic_review.py            # Basic code review example
+│   └── .env.example               # Environment variable template
+│
+├── docs/                           # 📚 Documentation
+│   └── agent_architecture.md      # Agent system architecture
+│
+├── setup.py                        # Package setup
+├── pyproject.toml                  # Modern Python packaging
+├── requirements.txt                # Core dependencies
+└── README.md                       # This file
+```
+
+---
+
+## 🎯 Features
+
+### Multi-Agent Architecture
+
+The system uses a **hierarchical multi-agent design** where a root orchestrator coordinates 5 specialized reviewers:
+
+```
+Root Orchestrator
+├── Security Reviewer (OWASP Top 10, Python vulnerabilities)
+├── Architecture Reviewer (SOLID, design patterns, anti-patterns)
+├── Code Quality Reviewer (PEP standards, Pythonic idioms)
+├── Performance Reviewer (Big O, N+1 queries, caching)
+└── Python Expert (stdlib, frameworks, modern features)
+```
+
+Each agent has:
+- **Deep domain knowledge** embedded in prompts (5,000+ lines total)
+- **Specialized expertise** in their area
+- **Actionable recommendations** with code examples
+- **Severity ratings** (Critical, High, Medium, Low)
+
+### Comprehensive Analysis
+
+**Security (OWASP Top 10)**:
+- SQL Injection, XSS, CSRF
+- Insecure deserialization (pickle)
+- Hardcoded secrets and credentials
+- Path traversal vulnerabilities
+- Command injection
+
+**Architecture**:
+- SOLID principles (SRP, OCP, LSP, ISP, DIP)
+- Design patterns (Factory, Strategy, Observer, etc.)
+- Anti-patterns (God Object, Circular Dependencies)
+- Separation of concerns
+
+**Code Quality**:
+- PEP 8 (style), PEP 20 (Zen of Python)
+- PEP 257 (docstrings), PEP 484/585 (type hints)
+- Pythonic idioms (comprehensions, generators, context managers)
+- Code smells and maintainability
+
+**Performance**:
+- Algorithm complexity (Big O analysis)
+- Database query optimization (N+1 detection)
+- Memory usage patterns
+- Caching opportunities
+
+**Python Best Practices**:
+- Standard library usage (collections, itertools, functools)
+- Framework patterns (Django ORM, Flask, FastAPI)
+- Modern Python features (3.10+ match/case, 3.11+ exception groups)
+- Async/await patterns
+
+---
+
+## 🔌 Integration Options
+
+Choose how to integrate with GitHub - see [`integrations/INTEGRATION_GUIDE.md`](integrations/INTEGRATION_GUIDE.md) for decision matrix.
+
+### Option 1: GitHub Actions (CI/CD)
+**Best for**: Teams using GitHub Actions, automatic PR reviews
+
+```yaml
+# .github/workflows/code-review.yml
+name: Code Review
+on: [pull_request]
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run AI Code Review
+        run: python integrations/github_actions/review_pr.py
+```
+
+**Setup**: 5 minutes | **Cost**: Free tier available
+**Docs**: [`integrations/github_actions/`](integrations/github_actions/)
+
+### Option 2: GitHub App (Organization-wide)
+**Best for**: Organizations, enterprise deployment
+
+Deploy as a GitHub App on Cloud Run:
+- Automatic reviews on all repositories
+- Webhook-based (real-time)
+- Centralized configuration
+- Auto-scaling
+
+**Setup**: 30 minutes | **Cost**: ~$5-20/month
+**Docs**: [`integrations/github_app/`](integrations/github_app/)
+
+### Option 3: GitHub CLI (Local)
+**Best for**: Individual developers, pre-commit reviews
+
+```bash
+# Review a PR
+python integrations/github_cli/review_pr.py 123
+
+# Review local files
+python integrations/github_cli/review_files.py src/main.py
+```
+
+**Setup**: 10 minutes | **Cost**: Free
+**Docs**: [`integrations/github_cli/`](integrations/github_cli/)
+
+### Option 4: Direct API (Custom)
+**Best for**: Custom workflows, unique requirements
+
+```python
+from python_codebase_reviewer import root_agent
+from python_codebase_reviewer.tools.github_tools import fetch_pr_files
+
+# Fetch PR files
+files = fetch_pr_files("owner/repo", 123)
+
+# Review each file
+for file in files:
+    review = root_agent.run(f"Review {file['filename']}: {file['content']}")
+```
+
+**Setup**: Varies | **Cost**: Custom
+**Docs**: [`integrations/direct_api/`](integrations/direct_api/)
+
+---
+
+## 📊 Evaluation & Metrics
+
+The system has been evaluated on 63 test cases across 6 datasets:
+
+| Metric | Score |
+|--------|-------|
+| **Precision** | ~90% (few false positives) |
+| **Recall** | ~85% (catches most real issues) |
+| **F1 Score** | ~0.87 |
+
+**Run evaluations:**
+```bash
+cd evals
+python run_all_evals.py
+```
+
+See [`evals/README.md`](evals/README.md) for details.
+
+---
+
+## 🧪 Testing
+
+Comprehensive test suite with 90+ test cases:
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=python_codebase_reviewer --cov-report=html
+
+# Run specific test categories
+pytest -m unit              # Fast unit tests
+pytest -m integration       # Integration tests
+pytest -m "not slow"        # Exclude slow tests
+```
+
+See [`tests/README.md`](tests/README.md) for details.
+
+---
+
+## 💡 Examples
+
+### Example 1: Basic Review
+
+```python
+from python_codebase_reviewer import root_agent
+
+code = """
+def calculate_total(items):
+    total = 0
+    for item in items:
+        total += item.price
+    return total
+"""
+
+review = root_agent.run(f"Review this code:\n\n{code}")
+```
+
+### Example 2: Security-Focused Review
+
+```python
+from python_codebase_reviewer.sub_agents import security_reviewer
+
+code = """
+def login(username, password):
+    query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+    return db.execute(query)
+"""
+
+review = security_reviewer.run(f"Check for security vulnerabilities:\n\n{code}")
+```
+
+### Example 3: Review GitHub PR
+
+```python
+from python_codebase_reviewer import root_agent
+from python_codebase_reviewer.tools.github_tools import fetch_pr_files, post_pr_review
+
+# Fetch PR files
+files = fetch_pr_files("owner/repo", 123)
+
+# Review each Python file
+for file in [f for f in files if f['filename'].endswith('.py')]:
+    review = root_agent.run(f"Review {file['filename']}")
+
+# Post review
+post_pr_review("owner/repo", 123, review)
+```
+
+See [`examples/`](examples/) for more.
+
+---
+
+## 🛠️ Development
+
+### Setup Development Environment
+
+```bash
+# Clone repository
+git clone https://github.com/pavanpaik/agents-with-adk.git
+cd agents-with-adk
+
+# Install in development mode with all dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run linting
+black src/ tests/
+flake8 src/ tests/
+mypy src/
+
+# Run evaluations
+cd evals && python run_all_evals.py
+```
+
+### Project Components
+
+- **Core Package** (`src/python_codebase_reviewer/`): The agent implementation
+- **Integrations** (`integrations/`): Reference implementations for GitHub
+- **Evaluations** (`evals/`): Quality benchmarks and test cases
+- **Tests** (`tests/`): Unit and integration tests
+- **Examples** (`examples/`): Simple usage examples
+- **Docs** (`docs/`): Documentation
+
+---
+
+## 📖 Documentation
+
+- **[Integration Guide](integrations/INTEGRATION_GUIDE.md)**: Choose the right GitHub integration
+- **[Agent Architecture](docs/agent_architecture.md)**: Deep dive into agent design
+- **[Testing Guide](tests/README.md)**: How to run and write tests
+- **[Evaluation Guide](evals/README.md)**: Agent quality metrics
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Run tests and linting
+6. Submit a pull request
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+Built with:
+- **[Google Agent Development Kit (ADK)](https://github.com/google/agent-development-kit)** - Multi-agent orchestration
+- **[Google Gemini](https://ai.google.dev/)** - AI models (gemini-2.0-flash-exp, gemini-2.0-pro-exp)
+
+---
+
+## 📧 Support
+
+- **Issues**: [GitHub Issues](https://github.com/pavanpaik/agents-with-adk/issues)
+- **Documentation**: [docs/](docs/)
+- **Examples**: [examples/](examples/)
+- **Integrations**: [integrations/](integrations/)
+
+---
+
+**Made with ❤️ using Google's Agent Development Kit**

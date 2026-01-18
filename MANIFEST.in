@@ -1,0 +1,23 @@
+# Include important files in source distribution
+include README.md
+include LICENSE
+include pyproject.toml
+include requirements.txt
+include requirements-dev.txt
+
+# Include documentation
+recursive-include docs *.md
+
+# Exclude build artifacts and temporary files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude .DS_Store
+global-exclude *.so
+global-exclude *.egg-info
+
+# Exclude tests from package
+prune tests
+prune evals
+prune integrations
+prune examples
