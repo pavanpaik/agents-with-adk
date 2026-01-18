@@ -15,12 +15,8 @@ import json
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-
-# Import the modules (they're scripts, so we need to handle them carefully)
-# We'll test the functions by importing them after adding to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'python_codebase_reviewer' / 'github_cli'))
+# Add integrations directory to path for importing CLI scripts
+sys.path.insert(0, str(Path(__file__).parent.parent / 'integrations' / 'github_cli'))
 
 
 # ============================================================================

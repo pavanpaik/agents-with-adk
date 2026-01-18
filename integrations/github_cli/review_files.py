@@ -27,14 +27,12 @@ import argparse
 from pathlib import Path
 from typing import List, Dict
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 try:
     from python_codebase_reviewer import root_agent
 except ImportError as e:
     print(f"❌ Error importing Python Codebase Reviewer: {e}")
-    print("   Install: pip install google-adk")
+    print("   Install: pip install -e /path/to/agents-with-adk")
+    print("   Or: pip install python-codebase-reviewer")
     sys.exit(1)
 
 

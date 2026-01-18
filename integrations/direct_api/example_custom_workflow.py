@@ -21,11 +21,8 @@ Usage:
 import os
 import sys
 import json
-from pathlib import Path
 from typing import List, Dict, Optional
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from python_codebase_reviewer import root_agent
 from python_codebase_reviewer.sub_agents import (

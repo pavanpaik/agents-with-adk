@@ -14,11 +14,6 @@ import pytest
 from unittest.mock import patch, MagicMock
 import json
 
-# Add parent directory to path
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from python_codebase_reviewer.tools.github_tools import (
     fetch_pr_files,
     fetch_file_content,

@@ -17,9 +17,6 @@ import argparse
 from pathlib import Path
 from typing import List, Dict
 
-# Add parent directory to path to import reviewer
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 try:
     from python_codebase_reviewer import root_agent
     from python_codebase_reviewer.tools.github_tools import (
@@ -29,7 +26,9 @@ try:
     )
 except ImportError as e:
     print(f"Error importing Python Codebase Reviewer: {e}")
-    print("Make sure google-adk is installed: pip install google-adk")
+    print("Make sure the package is installed:")
+    print("  pip install -e /path/to/agents-with-adk")
+    print("  Or: pip install python-codebase-reviewer")
     sys.exit(1)
 
 

@@ -31,9 +31,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 try:
     from python_codebase_reviewer import root_agent
     from python_codebase_reviewer.tools.github_tools import (

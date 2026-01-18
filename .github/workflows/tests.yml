@@ -58,7 +58,7 @@ jobs:
 
       - name: Run evaluation tests
         run: |
-          pytest python_codebase_reviewer/eval/test_eval.py -v
+          pytest evals/test_eval.py -v
         env:
           GOOGLE_API_KEY: test_api_key_for_eval_tests
 
@@ -80,17 +80,17 @@ jobs:
 
       - name: Run Black (code formatting)
         run: |
-          black --check python_codebase_reviewer/ tests/
+          black --check src/ tests/ integrations/ evals/
         continue-on-error: true
 
       - name: Run Flake8 (linting)
         run: |
-          flake8 python_codebase_reviewer/ tests/ --max-line-length=100 --ignore=E501,W503
+          flake8 src/ tests/ integrations/ evals/ --max-line-length=100 --ignore=E501,W503
         continue-on-error: true
 
       - name: Run mypy (type checking)
         run: |
-          mypy python_codebase_reviewer/ --ignore-missing-imports
+          mypy src/ --ignore-missing-imports
         continue-on-error: true
 
   security:
@@ -111,7 +111,7 @@ jobs:
 
       - name: Run Bandit (security linting)
         run: |
-          bandit -r python_codebase_reviewer/ -ll
+          bandit -r src/ -ll
         continue-on-error: true
 
       - name: Check dependencies for vulnerabilities
