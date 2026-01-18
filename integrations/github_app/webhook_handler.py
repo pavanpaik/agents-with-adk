@@ -53,6 +53,7 @@ GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET')
 GITHUB_APP_ID = os.getenv('GITHUB_APP_ID')
 GITHUB_PRIVATE_KEY = os.getenv('GITHUB_PRIVATE_KEY')
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
 
 # Validate required environment variables
 REQUIRED_ENV_VARS = {
@@ -65,6 +66,22 @@ REQUIRED_ENV_VARS = {
 missing_vars = [k for k, v in REQUIRED_ENV_VARS.items() if not v]
 if missing_vars:
     logger.error(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
+    # In production, fail fast
+    if ENVIRONMENT == 'production':
+        logger.critical("🔴 Cannot start in production with missing environment variables")
+        sys.exit(1)
+
+
+# Request tracking
+import uuid
+from flask import g
+
+
+@app.before_request
+def before_request():
+    """Add request ID for tracking."""
+    g.request_id = str(uuid.uuid4())
+    logger.info(f"[{g.request_id}] Request started: {request.method} {request.path}")
 
 
 def verify_webhook_signature(payload_body: bytes, signature: str) -> bool:
@@ -77,10 +94,19 @@ def verify_webhook_signature(payload_body: bytes, signature: str) -> bool:
 
     Returns:
         True if signature is valid, False otherwise
+
+    Raises:
+        RuntimeError: If GITHUB_WEBHOOK_SECRET is not set in production
     """
+    # In production, webhook secret MUST be set
     if not GITHUB_WEBHOOK_SECRET:
-        logger.warning("⚠️  GITHUB_WEBHOOK_SECRET not set - signature verification disabled")
-        return True
+        environment = os.getenv('ENVIRONMENT', 'development')
+        if environment == 'production':
+            logger.critical("🔴 GITHUB_WEBHOOK_SECRET not set in production!")
+            raise RuntimeError("GITHUB_WEBHOOK_SECRET must be set in production")
+        else:
+            logger.warning("⚠️  GITHUB_WEBHOOK_SECRET not set - signature verification disabled (development only)")
+            return True
 
     if not signature:
         logger.warning("⚠️  No signature provided in request")
@@ -459,9 +485,30 @@ def webhook():
                 'files_reviewed': len(python_files)
             }), 200
 
+        except (KeyError, TypeError) as e:
+            # Handle malformed payload
+            logger.error(f"❌ Malformed webhook payload: {e}", exc_info=True)
+            return jsonify({'error': 'Malformed payload'}), 400
+
+        except GitHubAPIError as e:
+            # Handle GitHub API errors
+            logger.error(f"❌ GitHub API error: {e}", exc_info=True)
+            return jsonify({'error': 'GitHub API error'}), 502
+
+        except ValueError as e:
+            # Handle validation errors
+            logger.error(f"❌ Validation error: {e}", exc_info=True)
+            return jsonify({'error': str(e)}), 400
+
+        except requests.exceptions.RequestException as e:
+            # Handle network errors
+            logger.error(f"❌ Network error: {e}", exc_info=True)
+            return jsonify({'error': 'Network error communicating with GitHub'}), 502
+
         except Exception as e:
-            logger.error(f"❌ Error processing webhook: {e}", exc_info=True)
-            return jsonify({'error': str(e)}), 500
+            # Catch-all for unexpected errors
+            logger.critical(f"❌ Unexpected error processing webhook: {e}", exc_info=True)
+            return jsonify({'error': 'Internal server error'}), 500
 
     elif event == 'ping':
         logger.info("🏓 Received ping event")
