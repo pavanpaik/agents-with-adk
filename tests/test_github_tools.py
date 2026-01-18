@@ -18,9 +18,10 @@ from python_codebase_reviewer.tools.github_tools import (
     fetch_pr_files,
     fetch_file_content,
     fetch_pr_info,
-    fetch_issue_comments,
+    fetch_pr_diff,
     post_pr_review,
-    post_pr_line_comment,
+    post_pr_comment,
+    create_review_comment,
     GitHubAPIError
 )
 
