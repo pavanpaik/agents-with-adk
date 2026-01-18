@@ -1,0 +1,19 @@
+{
+  "name": "Python Codebase Reviewer",
+  "description": "AI-powered Python code review agent with security, architecture, quality, performance, and Python expertise analysis",
+  "url": "https://github.com/your-org/agents-with-adk",
+  "hook_attributes": {
+    "url": "https://your-service-url.run.app/webhook",
+    "active": true
+  },
+  "redirect_url": "",
+  "public": false,
+  "default_permissions": {
+    "contents": "read",
+    "pull_requests": "write",
+    "issues": "write"
+  },
+  "default_events": [
+    "pull_request"
+  ]
+}

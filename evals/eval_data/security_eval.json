@@ -1,0 +1,303 @@
+[
+  {
+    "query": "Review this login function for security issues:\n```python\ndef login(username, password):\n    query = f\"SELECT * FROM users WHERE username='{username}' AND password='{password}'\"\n    result = db.execute(query)\n    return result.fetchone()\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "CRITICAL",
+          "vulnerability": "SQL Injection",
+          "line": 2,
+          "owasp": "A03:2021"
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["parameterized query", "prepared statement"],
+      "min_cvss_score": 9.0
+    }
+  },
+  {
+    "query": "Review this code for security vulnerabilities:\n```python\nimport pickle\n\n@app.route('/load', methods=['POST'])\ndef load_data():\n    data = request.get_data()\n    obj = pickle.loads(data)\n    return obj.process()\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "CRITICAL",
+          "vulnerability": "Insecure Deserialization",
+          "line": 6,
+          "owasp": "A08:2021"
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["json", "safe alternative"],
+      "min_cvss_score": 8.0
+    }
+  },
+  {
+    "query": "Check this configuration file for security issues:\n```python\n# config.py\nDEBUG = True\nSECRET_KEY = 'django-insecure-hardcoded-secret-key-12345'\nAWS_ACCESS_KEY = 'AKIAIOSFODNN7EXAMPLE'\nAWS_SECRET_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'\nALLOWED_HOSTS = ['*']\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "HIGH",
+          "vulnerability": "Hardcoded AWS Credentials",
+          "line": 4
+        },
+        {
+          "type": "SECURITY",
+          "severity": "HIGH",
+          "vulnerability": "Hardcoded Secret Key",
+          "line": 3
+        },
+        {
+          "type": "SECURITY",
+          "severity": "MEDIUM",
+          "vulnerability": "Debug Mode Enabled",
+          "line": 2
+        }
+      ],
+      "min_findings": 3,
+      "must_provide_fix": true
+    }
+  },
+  {
+    "query": "Review this command execution code:\n```python\nimport subprocess\n\ndef run_command(user_input):\n    cmd = f\"ping {user_input}\"\n    result = subprocess.call(cmd, shell=True)\n    return result\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "CRITICAL",
+          "vulnerability": "Command Injection",
+          "line": 5,
+          "owasp": "A03:2021"
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["shell=False", "list of arguments"],
+      "min_cvss_score": 8.5
+    }
+  },
+  {
+    "query": "Check this Flask route for security issues:\n```python\nfrom flask import Flask, request\nimport requests\n\napp = Flask(__name__)\n\n@app.route('/fetch')\ndef fetch_url():\n    url = request.args.get('url')\n    response = requests.get(url)\n    return response.content\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "HIGH",
+          "vulnerability": "Server-Side Request Forgery (SSRF)",
+          "line": 9,
+          "owasp": "A10:2021"
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["URL validation", "allowlist"],
+      "min_cvss_score": 7.0
+    }
+  },
+  {
+    "query": "Review this password hashing:\n```python\nimport hashlib\n\ndef hash_password(password):\n    return hashlib.md5(password.encode()).hexdigest()\n\ndef verify_password(password, hash):\n    return hash_password(password) == hash\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "CRITICAL",
+          "vulnerability": "Weak Password Hashing (MD5)",
+          "line": 4,
+          "owasp": "A02:2021"
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["bcrypt", "argon2", "scrypt"],
+      "min_cvss_score": 8.0
+    }
+  },
+  {
+    "query": "Check this token comparison:\n```python\ndef verify_token(user_token, actual_token):\n    return user_token == actual_token\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "MEDIUM",
+          "vulnerability": "Timing Attack",
+          "line": 2
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["hmac.compare_digest", "constant-time"]
+    }
+  },
+  {
+    "query": "Review this user update endpoint:\n```python\n@app.route('/user/update', methods=['POST'])\ndef update_user():\n    user = User.query.get(current_user.id)\n    for key, value in request.json.items():\n        setattr(user, key, value)\n    db.session.commit()\n    return jsonify(user)\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "HIGH",
+          "vulnerability": "Mass Assignment",
+          "line": 5
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["allowlist", "field validation"],
+      "min_cvss_score": 7.0
+    }
+  },
+  {
+    "query": "Check this Django view:\n```python\nfrom django.views.decorators.csrf import csrf_exempt\n\n@csrf_exempt\n@require_POST\ndef process_payment(request):\n    amount = request.POST.get('amount')\n    process_charge(amount)\n    return HttpResponse('OK')\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "HIGH",
+          "vulnerability": "CSRF Protection Disabled",
+          "line": 3,
+          "owasp": "A01:2021"
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["remove csrf_exempt", "CSRF token"]
+    }
+  },
+  {
+    "query": "Review this YAML loading:\n```python\nimport yaml\n\ndef load_config(config_file):\n    with open(config_file) as f:\n        config = yaml.load(f)\n    return config\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "HIGH",
+          "vulnerability": "Unsafe YAML Loading",
+          "line": 5
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["yaml.safe_load", "safe_load"]
+    }
+  },
+  {
+    "query": "Check this XML parsing:\n```python\nimport xml.etree.ElementTree as ET\n\ndef parse_xml(xml_string):\n    tree = ET.fromstring(xml_string)\n    return tree.find('.//data').text\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "HIGH",
+          "vulnerability": "XML External Entity (XXE)",
+          "line": 4
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["defusedxml", "safe XML parser"]
+    }
+  },
+  {
+    "query": "Review this file download:\n```python\n@app.route('/download/<filename>')\ndef download(filename):\n    return send_file(f'/uploads/{filename}')\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "HIGH",
+          "vulnerability": "Path Traversal",
+          "line": 3
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["secure_filename", "path validation"]
+    }
+  },
+  {
+    "query": "Check this random number generation:\n```python\nimport random\n\ndef generate_session_token():\n    return str(random.randint(100000, 999999))\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "HIGH",
+          "vulnerability": "Weak Random Number Generator",
+          "line": 4,
+          "owasp": "A02:2021"
+        }
+      ],
+      "must_provide_fix": true,
+      "fix_should_include": ["secrets", "cryptographically secure"]
+    }
+  },
+  {
+    "query": "Review this well-written secure code (should have NO security findings):\n```python\nfrom flask import request\nfrom sqlalchemy import text\nimport hmac\nimport hashlib\n\ndef verify_webhook(request):\n    signature = request.headers.get('X-Signature')\n    body = request.get_data()\n    expected = hmac.new(\n        key=WEBHOOK_SECRET.encode(),\n        msg=body,\n        digestmod=hashlib.sha256\n    ).hexdigest()\n\n    if not hmac.compare_digest(signature, expected):\n        return False\n\n    return True\n\ndef get_user(user_id):\n    query = text(\"SELECT * FROM users WHERE id = :id\")\n    result = db.execute(query, {\"id\": user_id})\n    return result.fetchone()\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [],
+      "should_not_flag": [
+        "parameterized queries are secure",
+        "hmac.compare_digest is correct for timing attacks",
+        "this is secure code"
+      ],
+      "max_findings": 0,
+      "note": "This is a TRUE NEGATIVE test - clean code should not be flagged"
+    }
+  },
+  {
+    "query": "Review this test fixture (should NOT flag hardcoded data as security issue):\n```python\nimport pytest\n\n@pytest.fixture\ndef sample_user():\n    return {\n        'username': 'testuser',\n        'email': 'test@example.com',\n        'password': 'test_password_123',\n        'api_key': 'test_api_key_abc'\n    }\n\ndef test_user_creation(sample_user):\n    user = create_user(**sample_user)\n    assert user.username == 'testuser'\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [],
+      "should_not_flag": [
+        "test fixtures",
+        "test data",
+        "this is test code"
+      ],
+      "max_findings": 0,
+      "note": "Test fixtures should not be flagged as hardcoded secrets"
+    }
+  },
+  {
+    "query": "Review this code with multiple security issues:\n```python\nimport os\nimport pickle\nfrom flask import Flask, request\n\napp = Flask(__name__)\napp.config['SECRET_KEY'] = 'hardcoded-secret'\napp.config['DEBUG'] = True\n\n@app.route('/search')\ndef search():\n    query = request.args.get('q')\n    sql = f\"SELECT * FROM products WHERE name LIKE '%{query}%'\"\n    results = db.execute(sql)\n    return results\n\n@app.route('/exec')\ndef exec_code():\n    code = request.args.get('code')\n    eval(code)\n    return 'OK'\n\n@app.route('/upload', methods=['POST'])\ndef upload():\n    data = request.get_data()\n    obj = pickle.loads(data)\n    obj.save()\n    return 'OK'\n```",
+    "expected_tool_use": [],
+    "reference": {
+      "must_detect": [
+        {
+          "type": "SECURITY",
+          "severity": "CRITICAL",
+          "vulnerability": "SQL Injection",
+          "line": 12
+        },
+        {
+          "type": "SECURITY",
+          "severity": "CRITICAL",
+          "vulnerability": "Code Injection (eval)",
+          "line": 19
+        },
+        {
+          "type": "SECURITY",
+          "severity": "CRITICAL",
+          "vulnerability": "Insecure Deserialization",
+          "line": 25
+        },
+        {
+          "type": "SECURITY",
+          "severity": "HIGH",
+          "vulnerability": "Hardcoded Secret Key",
+          "line": 6
+        },
+        {
+          "type": "SECURITY",
+          "severity": "MEDIUM",
+          "vulnerability": "Debug Mode Enabled",
+          "line": 7
+        }
+      ],
+      "min_findings": 5,
+      "note": "Should find ALL security issues, prioritize CRITICAL first"
+    }
+  }
+]
