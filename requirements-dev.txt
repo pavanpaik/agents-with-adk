@@ -1,0 +1,36 @@
+# Development dependencies for Python Codebase Reviewer
+# Install with: pip install -r requirements-dev.txt
+
+# Core dependencies (also in requirements.txt)
+google-adk>=0.1.0
+requests>=2.31.0
+flask>=3.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+pytest-timeout>=2.2.0
+pytest-xdist>=3.5.0  # Parallel test execution
+
+# Linting and formatting
+black>=23.12.0
+flake8>=7.0.0
+mypy>=1.8.0
+isort>=5.13.0
+
+# Security
+bandit>=1.7.6
+safety>=3.0.0
+
+# Code quality
+pylint>=3.0.0
+coverage>=7.4.0
+
+# Documentation
+sphinx>=7.2.0
+sphinx-rtd-theme>=2.0.0
+
+# Utilities
+ipython>=8.18.0
+ipdb>=0.13.13
