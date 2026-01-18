@@ -15,12 +15,8 @@ import json
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-
-# Import the modules (they're scripts, so we need to handle them carefully)
-# We'll test the functions by importing them after adding to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'python_codebase_reviewer' / 'github_cli'))
+# Add integrations directory to path for importing CLI scripts
+sys.path.insert(0, str(Path(__file__).parent.parent / 'integrations' / 'github_cli'))
 
 
 # ============================================================================
@@ -295,14 +291,13 @@ def test_post_pr_comment_success():
 
 def test_review_file_success(mock_env_vars, sample_file_content):
     """Test reviewing a single file."""
-    with patch('pathlib.Path.read_text') as mock_read, \
-         patch('python_codebase_reviewer.root_agent.run') as mock_agent:
-
+    with patch('pathlib.Path.read_text') as mock_read:
         mock_read.return_value = sample_file_content
-        mock_agent.return_value = 'Review: No critical issues found'
 
         import review_files
-        result = review_files.review_file(Path('test.py'))
+        # Patch root_agent where it's used in review_files module
+        with patch.object(review_files.root_agent, 'run', return_value='Review: No critical issues found'):
+            result = review_files.review_file(Path('test.py'))
 
         assert result['status'] == 'success'
         assert result['file'] == 'test.py'
