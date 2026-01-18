@@ -154,7 +154,7 @@ def process(data):
 from typing import List
 
 def process(data: str) -> List[str]:
-    """Split string into list of words."""
+    '''Split string into list of words.'''
     return data.split()
 ```
 
@@ -212,7 +212,7 @@ class User:
 
 # ✅ GOOD: Comprehensive docstrings
 def calculate(a: float, b: float) -> float:
-    """
+    '''
     Calculate the sum of two numbers.
 
     Args:
@@ -230,12 +230,12 @@ def calculate(a: float, b: float) -> float:
         5
         >>> calculate(2.5, 1.5)
         4.0
-    """
+    '''
     return a + b
 
 
 class User:
-    """
+    '''
     Represents a user in the system.
 
     Attributes:
@@ -247,16 +247,16 @@ class User:
         >>> user = User("John Doe", "john@example.com")
         >>> user.name
         'John Doe'
-    """
+    '''
 
     def __init__(self, name: str, email: str):
-        """
+        '''
         Initialize a new User.
 
         Args:
             name: The user's full name
             email: The user's email address
-        """
+        '''
         self.name = name
         self.email = email
         self.created_at = datetime.now()
@@ -278,7 +278,7 @@ def process_users(users):
 from typing import List, Dict, Optional, Union
 
 def process_users(users: List[str]) -> List[str]:
-    """Process a list of user names."""
+    '''Process a list of user names.'''
     result: List[str] = []
     for user in users:
         result.append(user.upper())
@@ -286,16 +286,16 @@ def process_users(users: List[str]) -> List[str]:
 
 # Python 3.9+ syntax (PEP 585)
 def process_data(data: dict[str, int]) -> list[str]:
-    """Process data dictionary and return list of keys."""
+    '''Process data dictionary and return list of keys.'''
     return list(data.keys())
 
 # Optional and Union types
 def find_user(user_id: int) -> Optional[User]:
-    """Find user by ID, return None if not found."""
+    '''Find user by ID, return None if not found.'''
     return User.query.get(user_id)
 
 def format_value(value: Union[int, float, str]) -> str:
-    """Format value as string."""
+    '''Format value as string.'''
     return str(value)
 ```
 
