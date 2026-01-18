@@ -8,7 +8,6 @@ import requests
 from typing import List, Dict, Optional
 import base64
 
-GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 GITHUB_API = 'https://api.github.com'
 
 
@@ -32,11 +31,12 @@ def github_request(method: str, endpoint: str, data: Optional[Dict] = None):
     Raises:
         GitHubAPIError: If request fails
     """
-    if not GITHUB_TOKEN:
+    github_token = os.getenv('GITHUB_TOKEN')
+    if not github_token:
         raise GitHubAPIError("GITHUB_TOKEN environment variable not set")
 
     headers = {
-        'Authorization': f'token {GITHUB_TOKEN}',
+        'Authorization': f'token {github_token}',
         'Accept': 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28'
     }
