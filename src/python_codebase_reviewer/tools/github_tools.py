@@ -7,6 +7,13 @@ import os
 import requests
 from typing import List, Dict, Optional
 import base64
+import logging
+import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 GITHUB_API = 'https://api.github.com'
 
@@ -16,9 +23,83 @@ class GitHubAPIError(Exception):
     pass
 
 
+def _get_github_token() -> str:
+    """
+    Get GitHub token from environment.
+
+    Returns:
+        GitHub token string
+
+    Raises:
+        GitHubAPIError: If token not set
+    """
+    token = os.getenv('GITHUB_TOKEN')
+    if not token:
+        logger.error("GITHUB_TOKEN environment variable not set")
+        raise GitHubAPIError("GITHUB_TOKEN environment variable not set")
+    return token
+
+
+def _create_session() -> requests.Session:
+    """
+    Create requests session with retry logic.
+
+    Returns:
+        Configured requests.Session with exponential backoff
+    """
+    session = requests.Session()
+
+    # Configure retry strategy with exponential backoff
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=1,  # 1s, 2s, 4s
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST", "PATCH"]
+    )
+
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+    return session
+
+
+def _validate_repo(repo: str) -> None:
+    """
+    Validate repository format.
+
+    Args:
+        repo: Repository string
+
+    Raises:
+        ValueError: If repo format is invalid
+    """
+    if not repo or not isinstance(repo, str):
+        raise ValueError("repo must be a non-empty string")
+    if '/' not in repo or repo.count('/') != 1:
+        raise ValueError("repo must be in 'owner/repo' format")
+    owner, name = repo.split('/')
+    if not owner or not name:
+        raise ValueError("repo must be in 'owner/repo' format with non-empty owner and name")
+
+
+def _validate_pr_number(pr_number: int) -> None:
+    """
+    Validate pull request number.
+
+    Args:
+        pr_number: PR number
+
+    Raises:
+        ValueError: If pr_number is invalid
+    """
+    if not isinstance(pr_number, int) or pr_number < 1:
+        raise ValueError("pr_number must be a positive integer")
+
+
 def github_request(method: str, endpoint: str, data: Optional[Dict] = None):
     """
-    Make authenticated GitHub API request.
+    Make authenticated GitHub API request with retry logic.
 
     Args:
         method: HTTP method (GET, POST, PUT, PATCH, DELETE)
@@ -30,10 +111,9 @@ def github_request(method: str, endpoint: str, data: Optional[Dict] = None):
 
     Raises:
         GitHubAPIError: If request fails
+        ValueError: If method is unsupported
     """
-    github_token = os.getenv('GITHUB_TOKEN')
-    if not github_token:
-        raise GitHubAPIError("GITHUB_TOKEN environment variable not set")
+    github_token = _get_github_token()
 
     headers = {
         'Authorization': f'token {github_token}',
@@ -43,30 +123,44 @@ def github_request(method: str, endpoint: str, data: Optional[Dict] = None):
 
     url = f'{GITHUB_API}/{endpoint.lstrip("/")}'
 
+    logger.info(f"GitHub API request: {method} {endpoint}")
+
     try:
+        session = _create_session()
+
         if method == 'GET':
-            response = requests.get(url, headers=headers, timeout=30)
+            response = session.get(url, headers=headers, timeout=30)
         elif method == 'POST':
-            response = requests.post(url, headers=headers, json=data, timeout=30)
+            response = session.post(url, headers=headers, json=data, timeout=30)
         elif method == 'PUT':
-            response = requests.put(url, headers=headers, json=data, timeout=30)
+            response = session.put(url, headers=headers, json=data, timeout=30)
         elif method == 'PATCH':
-            response = requests.patch(url, headers=headers, json=data, timeout=30)
+            response = session.patch(url, headers=headers, json=data, timeout=30)
         elif method == 'DELETE':
-            response = requests.delete(url, headers=headers, timeout=30)
+            response = session.delete(url, headers=headers, timeout=30)
         else:
             raise ValueError(f'Unsupported HTTP method: {method}')
 
         response.raise_for_status()
+
+        logger.debug(f"GitHub API response: {response.status_code} for {method} {endpoint}")
+
         return response.json() if response.text else {}
 
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"GitHub API HTTP error: {method} {endpoint} - {response.status_code}: {str(e)}")
+        raise GitHubAPIError(f'GitHub API request failed: HTTP {response.status_code} - {str(e)}')
+    except requests.exceptions.Timeout as e:
+        logger.error(f"GitHub API timeout: {method} {endpoint} - {str(e)}")
+        raise GitHubAPIError(f'GitHub API request timed out: {str(e)}')
     except requests.exceptions.RequestException as e:
+        logger.error(f"GitHub API request error: {method} {endpoint} - {str(e)}")
         raise GitHubAPIError(f'GitHub API request failed: {str(e)}')
 
 
 def fetch_pr_files(repo: str, pr_number: int) -> List[Dict]:
     """
-    Fetch list of files changed in a pull request.
+    Fetch list of files changed in a pull request with pagination support.
 
     Args:
         repo: Repository in format "owner/repo"
@@ -81,16 +175,42 @@ def fetch_pr_files(repo: str, pr_number: int) -> List[Dict]:
         - changes: Total changes
         - patch: Git diff patch for the file
 
+    Raises:
+        ValueError: If repo or pr_number format is invalid
+        GitHubAPIError: If API request fails
+
     Example:
         >>> files = fetch_pr_files("owner/repo", 123)
         >>> for file in files:
         ...     print(f"{file['filename']}: +{file['additions']} -{file['deletions']}")
     """
-    endpoint = f'/repos/{repo}/pulls/{pr_number}/files'
-    files = github_request('GET', endpoint)
+    # Validate inputs
+    _validate_repo(repo)
+    _validate_pr_number(pr_number)
+
+    logger.info(f"Fetching files for PR #{pr_number} in {repo}")
+
+    # Fetch all pages
+    all_files = []
+    page = 1
+
+    while True:
+        endpoint = f'/repos/{repo}/pulls/{pr_number}/files?page={page}&per_page=100'
+        files = github_request('GET', endpoint)
+
+        if not files:
+            break
+
+        all_files.extend(files)
+        page += 1
+
+        if len(files) < 100:  # Last page
+            break
 
     # Filter to Python files only
-    python_files = [f for f in files if f['filename'].endswith('.py')]
+    python_files = [f for f in all_files if f['filename'].endswith('.py')]
+
+    logger.info(f"Found {len(python_files)} Python files (out of {len(all_files)} total files)")
 
     return python_files
 
@@ -107,17 +227,31 @@ def fetch_file_content(repo: str, path: str, ref: str = 'main') -> str:
     Returns:
         File content as string
 
+    Raises:
+        ValueError: If repo format is invalid or path is empty
+        GitHubAPIError: If API request fails or file not found
+
     Example:
         >>> content = fetch_file_content("owner/repo", "src/main.py", "main")
         >>> print(content)
     """
+    # Validate inputs
+    _validate_repo(repo)
+    if not path or not isinstance(path, str):
+        raise ValueError("path must be a non-empty string")
+
+    logger.info(f"Fetching content for {path} in {repo} (ref: {ref})")
+
     endpoint = f'/repos/{repo}/contents/{path}?ref={ref}'
     response = github_request('GET', endpoint)
 
     # Decode base64 content
     if 'content' in response:
-        return base64.b64decode(response['content']).decode('utf-8')
+        content = base64.b64decode(response['content']).decode('utf-8')
+        logger.debug(f"Successfully decoded content for {path} ({len(content)} chars)")
+        return content
     else:
+        logger.error(f"No content found for {path} in response")
         raise GitHubAPIError(f'No content found for {path}')
 
 
@@ -131,22 +265,40 @@ def fetch_pr_diff(repo: str, pr_number: int) -> str:
 
     Returns:
         Full git diff as string
+
+    Raises:
+        ValueError: If repo or pr_number format is invalid
+        GitHubAPIError: If API request fails
     """
-    if not GITHUB_TOKEN:
-        raise GitHubAPIError("GITHUB_TOKEN environment variable not set")
+    # Validate inputs
+    _validate_repo(repo)
+    _validate_pr_number(pr_number)
+
+    github_token = _get_github_token()
+
+    logger.info(f"Fetching diff for PR #{pr_number} in {repo}")
 
     headers = {
-        'Authorization': f'token {GITHUB_TOKEN}',
+        'Authorization': f'token {github_token}',
         'Accept': 'application/vnd.github.diff'  # Request diff format
     }
 
     url = f'{GITHUB_API}/repos/{repo}/pulls/{pr_number}'
 
     try:
-        response = requests.get(url, headers=headers, timeout=30)
+        session = _create_session()
+        response = session.get(url, headers=headers, timeout=30)
         response.raise_for_status()
+        logger.debug(f"Successfully fetched diff for PR #{pr_number} ({len(response.text)} chars)")
         return response.text
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"Failed to fetch PR diff: HTTP {response.status_code} - {str(e)}")
+        raise GitHubAPIError(f'Failed to fetch PR diff: HTTP {response.status_code} - {str(e)}')
+    except requests.exceptions.Timeout as e:
+        logger.error(f"Timeout fetching PR diff: {str(e)}")
+        raise GitHubAPIError(f'Timeout fetching PR diff: {str(e)}')
     except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch PR diff: {str(e)}")
         raise GitHubAPIError(f'Failed to fetch PR diff: {str(e)}')
 
 
@@ -160,7 +312,17 @@ def fetch_pr_info(repo: str, pr_number: int) -> Dict:
 
     Returns:
         PR information including title, body, author, etc.
+
+    Raises:
+        ValueError: If repo or pr_number format is invalid
+        GitHubAPIError: If API request fails
     """
+    # Validate inputs
+    _validate_repo(repo)
+    _validate_pr_number(pr_number)
+
+    logger.info(f"Fetching info for PR #{pr_number} in {repo}")
+
     endpoint = f'/repos/{repo}/pulls/{pr_number}'
     return github_request('GET', endpoint)
 
@@ -191,6 +353,10 @@ def post_pr_review(
     Returns:
         Review object
 
+    Raises:
+        ValueError: If inputs are invalid
+        GitHubAPIError: If API request fails
+
     Example:
         >>> post_pr_review(
         ...     "owner/repo",
@@ -204,6 +370,16 @@ def post_pr_review(
         ...     }]
         ... )
     """
+    # Validate inputs
+    _validate_repo(repo)
+    _validate_pr_number(pr_number)
+    if not body or not isinstance(body, str):
+        raise ValueError("body must be a non-empty string")
+    if event not in ['COMMENT', 'APPROVE', 'REQUEST_CHANGES']:
+        raise ValueError("event must be one of: COMMENT, APPROVE, REQUEST_CHANGES")
+
+    logger.info(f"Posting review on PR #{pr_number} in {repo} (event: {event})")
+
     endpoint = f'/repos/{repo}/pulls/{pr_number}/reviews'
 
     data = {
@@ -221,6 +397,7 @@ def post_pr_review(
             }
             for c in comments
         ]
+        logger.debug(f"Including {len(comments)} inline comments")
 
     return github_request('POST', endpoint, data)
 
@@ -237,6 +414,10 @@ def post_pr_comment(repo: str, pr_number: int, body: str) -> Dict:
     Returns:
         Comment object
 
+    Raises:
+        ValueError: If inputs are invalid
+        GitHubAPIError: If API request fails
+
     Example:
         >>> post_pr_comment(
         ...     "owner/repo",
@@ -244,6 +425,14 @@ def post_pr_comment(repo: str, pr_number: int, body: str) -> Dict:
         ...     "# Code Review Results\n\n✅ All checks passed!"
         ... )
     """
+    # Validate inputs
+    _validate_repo(repo)
+    _validate_pr_number(pr_number)
+    if not body or not isinstance(body, str):
+        raise ValueError("body must be a non-empty string")
+
+    logger.info(f"Posting comment on PR #{pr_number} in {repo}")
+
     # GitHub uses /issues endpoint for PR comments
     endpoint = f'/repos/{repo}/issues/{pr_number}/comments'
     data = {'body': body}
@@ -271,7 +460,25 @@ def create_review_comment(
 
     Returns:
         Review comment object
+
+    Raises:
+        ValueError: If inputs are invalid
+        GitHubAPIError: If API request fails
     """
+    # Validate inputs
+    _validate_repo(repo)
+    _validate_pr_number(pr_number)
+    if not commit_id or not isinstance(commit_id, str):
+        raise ValueError("commit_id must be a non-empty string")
+    if not path or not isinstance(path, str):
+        raise ValueError("path must be a non-empty string")
+    if not isinstance(line, int) or line < 1:
+        raise ValueError("line must be a positive integer")
+    if not body or not isinstance(body, str):
+        raise ValueError("body must be a non-empty string")
+
+    logger.info(f"Creating review comment on {path}:{line} for PR #{pr_number} in {repo}")
+
     endpoint = f'/repos/{repo}/pulls/{pr_number}/comments'
     data = {
         'body': body,
