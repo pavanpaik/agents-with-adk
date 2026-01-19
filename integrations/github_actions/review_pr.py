@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-GitHub Actions script to review PR using Python Codebase Reviewer.
+GitHub Actions script to review PR using Python Codebase Reviewer with MCP tools.
 
-This script is designed to run in GitHub Actions CI/CD pipeline.
+This script uses the GitHub MCP server to interact with GitHub APIs,
+allowing the AI agent to autonomously fetch files and post reviews.
 
 Usage:
     python review_pr.py --files "file1.py file2.py" --pr-number 123 --repo owner/repo
@@ -19,11 +20,6 @@ from typing import List, Dict
 
 try:
     from python_codebase_reviewer import root_agent
-    from python_codebase_reviewer.tools.github_tools import (
-        fetch_file_content,
-        fetch_pr_info,
-        GitHubAPIError
-    )
 except ImportError as e:
     print(f"Error importing Python Codebase Reviewer: {e}")
     print("Make sure the package is installed:")
@@ -32,99 +28,78 @@ except ImportError as e:
     sys.exit(1)
 
 
-def get_file_content_from_github(repo: str, file_path: str) -> str:
+def review_pr_with_mcp(repo: str, file_paths: List[str], pr_number: str) -> str:
     """
-    Fetch file content from GitHub.
+    Review pull request using agent with GitHub MCP tools.
+
+    The agent will autonomously:
+    1. Use get_file_contents to fetch each file from GitHub
+    2. Analyze the code with specialized reviewers
+    3. Generate a comprehensive review
 
     Args:
         repo: Repository in format "owner/repo"
-        file_path: Path to file in repository
-
-    Returns:
-        File content as string
-    """
-    try:
-        # Try to read from local checkout first (faster)
-        if Path(file_path).exists():
-            return Path(file_path).read_text()
-    except Exception:
-        pass
-
-    # Fallback to GitHub API
-    try:
-        # Get PR branch from environment or use HEAD
-        ref = os.getenv('GITHUB_HEAD_REF', 'HEAD')
-        return fetch_file_content(repo, file_path, ref)
-    except GitHubAPIError as e:
-        return f"# Error fetching file: {e}"
-
-
-def review_files(repo: str, file_paths: List[str], pr_number: str) -> List[Dict]:
-    """
-    Review changed Python files.
-
-    Args:
-        repo: Repository in format "owner/repo"
-        file_paths: List of file paths to review
+        file_paths: List of Python files to review
         pr_number: Pull request number
 
     Returns:
-        List of review results per file
+        Formatted markdown review
     """
-    results = []
+    print(f"🤖 Asking agent to review {len(file_paths)} Python files...")
 
-    for file_path in file_paths:
-        print(f"📝 Reviewing: {file_path}")
+    # Create a comprehensive review request for the agent
+    # The agent has access to GitHub MCP tools and can fetch files itself
+    review_request = f"""
+You are reviewing pull request #{pr_number} in repository {repo}.
 
-        # Get file content
-        code = get_file_content_from_github(repo, file_path)
+**Files to review ({len(file_paths)} Python files):**
+{chr(10).join(f"- `{f}`" for f in file_paths)}
 
-        if code.startswith("# Error"):
-            print(f"⚠️  Skipping {file_path}: {code}")
-            continue
+**Your task:**
+1. For each file, use the `get_file_contents` MCP tool to fetch the current file content from the repository
+   - Repository: {repo}
+   - Reference: Use the PR's head branch (or 'main' if unavailable)
+   - Path: Each file path listed above
 
-        # Run review
-        review_request = f"""
-Review this Python file from PR #{pr_number}:
+2. Analyze each file using your specialized reviewer agents:
+   - Security vulnerabilities (OWASP Top 10, SQL injection, XSS, secrets)
+   - Architecture issues (SOLID principles, design patterns, anti-patterns)
+   - Code quality (PEP 8/20/257/484, Pythonic idioms, maintainability)
+   - Performance issues (algorithm complexity, N+1 queries, caching)
+   - Python best practices (modern features, frameworks, standard library)
 
-**Repository**: {repo}
-**File**: `{file_path}`
-**Context**: This file was changed in a pull request
+3. Generate a comprehensive review in GitHub-flavored Markdown format with:
+   - Executive summary with severity counts (Critical/High/Medium/Low)
+   - File-by-file breakdown with specific issues
+   - Code examples and suggested fixes
+   - Severity indicators (🔴 Critical, 🟠 High, 🟡 Medium, 🔵 Low)
 
-```python
-{code}
-```
+**Important:**
+- Use get_file_contents for EACH file separately (don't assume you have the content)
+- If a file cannot be fetched, note it and continue with other files
+- Be specific with line numbers and code snippets
+- Provide actionable recommendations
+- Focus on security-critical issues first
 
-Provide a comprehensive review covering:
-- Security vulnerabilities (OWASP Top 10)
-- Architecture and design issues (SOLID principles)
-- Code quality (PEP standards, Pythonic idioms)
-- Performance issues (algorithm complexity, N+1 queries)
-- Python best practices
-
-Focus on actionable findings with severity levels and code fixes.
+Begin your review now.
 """
 
-        try:
-            print(f"  🤖 Running AI review...")
-            response = root_agent.run(review_request)
+    try:
+        response = root_agent.run(review_request)
+        return response
+    except Exception as e:
+        error_msg = f"""# ❌ Code Review Error
 
-            results.append({
-                'file': file_path,
-                'review': response,
-                'status': 'success'
-            })
-            print(f"  ✅ Review complete for {file_path}")
+**Repository**: {repo}
+**Pull Request**: #{pr_number}
 
-        except Exception as e:
-            print(f"  ❌ Error reviewing {file_path}: {e}")
-            results.append({
-                'file': file_path,
-                'review': f"Error during review: {str(e)}",
-                'status': 'error'
-            })
+**Error**: {str(e)}
 
-    return results
+The AI agent encountered an error while reviewing the code.
+Please check the logs and try again.
+"""
+        print(f"❌ Error during review: {e}")
+        return error_msg
 
 
 def count_findings_by_severity(review_text: str) -> Dict[str, int]:
@@ -137,108 +112,19 @@ def count_findings_by_severity(review_text: str) -> Dict[str, int]:
     Returns:
         Dictionary with counts by severity
     """
-    # Simple counting - could be made more sophisticated
+    # Simple counting based on severity indicators
     return {
-        'critical': review_text.upper().count('CRITICAL'),
-        'high': review_text.upper().count('HIGH'),
-        'medium': review_text.upper().count('MEDIUM'),
-        'low': review_text.upper().count('LOW'),
+        'critical': review_text.upper().count('CRITICAL') + review_text.count('🔴'),
+        'high': review_text.upper().count('HIGH') + review_text.count('🟠'),
+        'medium': review_text.upper().count('MEDIUM') + review_text.count('🟡'),
+        'low': review_text.upper().count('LOW') + review_text.count('🔵'),
     }
-
-
-def format_review_markdown(results: List[Dict], repo: str, pr_number: str) -> str:
-    """
-    Format review results as GitHub-flavored markdown.
-
-    Args:
-        results: List of review results
-        repo: Repository name
-        pr_number: Pull request number
-
-    Returns:
-        Formatted markdown string
-    """
-    output = []
-
-    # Header
-    output.append("# 🔍 Python Code Review Results\n")
-    output.append(f"**Repository**: {repo}\n")
-    output.append(f"**Pull Request**: #{pr_number}\n")
-    output.append(f"**Files Reviewed**: {len(results)}\n")
-    output.append("\n---\n\n")
-
-    # Count total findings by severity
-    total_counts = {
-        'critical': 0,
-        'high': 0,
-        'medium': 0,
-        'low': 0
-    }
-
-    for result in results:
-        if result['status'] == 'success':
-            counts = count_findings_by_severity(result['review'])
-            for severity, count in counts.items():
-                total_counts[severity] += count
-
-    # Summary
-    output.append("## 📊 Summary\n\n")
-
-    if sum(total_counts.values()) == 0:
-        output.append("✅ **No issues found!** All code looks good.\n\n")
-    else:
-        if total_counts['critical'] > 0:
-            output.append(f"- 🔴 **{total_counts['critical']} Critical** issues (immediate action required)\n")
-        if total_counts['high'] > 0:
-            output.append(f"- 🟠 **{total_counts['high']} High** priority issues\n")
-        if total_counts['medium'] > 0:
-            output.append(f"- 🟡 **{total_counts['medium']} Medium** priority issues\n")
-        if total_counts['low'] > 0:
-            output.append(f"- 🔵 **{total_counts['low']} Low** priority issues\n")
-        output.append("\n")
-
-        # Add warning if critical issues found
-        if total_counts['critical'] > 0:
-            output.append("> ⚠️ **Warning**: Critical security issues detected. Please review and fix before merging.\n\n")
-
-    output.append("---\n\n")
-
-    # Detailed results per file
-    output.append("## 📁 Detailed Review by File\n\n")
-
-    for result in results:
-        output.append(f"### `{result['file']}`\n\n")
-
-        if result['status'] == 'error':
-            output.append(f"❌ **Error**: {result['review']}\n\n")
-        else:
-            # Add collapsible section for long reviews
-            counts = count_findings_by_severity(result['review'])
-            total = sum(counts.values())
-
-            if total == 0:
-                output.append("✅ No issues found in this file.\n\n")
-            else:
-                output.append(f"**Found {total} issue(s)**\n\n")
-                output.append("<details>\n")
-                output.append("<summary>Click to view detailed review</summary>\n\n")
-                output.append(result['review'])
-                output.append("\n\n</details>\n\n")
-
-        output.append("---\n\n")
-
-    # Footer
-    output.append("## 🤖 Powered by Python Codebase Reviewer\n\n")
-    output.append("*AI-powered code review using specialized agents for security, architecture, ")
-    output.append("code quality, performance, and Python best practices.*\n")
-
-    return ''.join(output)
 
 
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description='Review Python files in a GitHub PR using AI'
+        description='Review Python files in a GitHub PR using AI with MCP tools'
     )
     parser.add_argument(
         '--files',
@@ -274,7 +160,8 @@ def main():
     print(f"Python Code Review - PR #{args.pr_number}")
     print(f"{'=' * 60}\n")
     print(f"Repository: {args.repo}")
-    print(f"Files to review: {len(files)}\n")
+    print(f"Files to review: {len(files)}")
+    print(f"Mode: Agent-driven with GitHub MCP tools\n")
 
     # Verify environment variables
     if not os.getenv('GOOGLE_API_KEY'):
@@ -284,29 +171,29 @@ def main():
     if not os.getenv('GITHUB_TOKEN'):
         print("⚠️  Warning: GITHUB_TOKEN not set, GitHub API calls may fail")
 
-    # Run reviews
-    print("🚀 Starting code review...\n")
-    results = review_files(args.repo, files, args.pr_number)
-
-    # Format as markdown
-    print("\n📝 Formatting results...")
-    markdown = format_review_markdown(results, args.repo, args.pr_number)
+    # Run review - agent will use MCP tools to fetch files
+    print("🚀 Starting AI-powered code review with MCP tools...\n")
+    markdown_review = review_pr_with_mcp(args.repo, files, args.pr_number)
 
     # Save results
     output_file = Path('review_results.md')
-    output_file.write_text(markdown)
+    output_file.write_text(markdown_review)
 
     print(f"\n✅ Review complete! Results saved to {output_file}")
 
     # Print summary
-    total_critical = sum(
-        count_findings_by_severity(r['review'])['critical']
-        for r in results if r['status'] == 'success'
-    )
+    counts = count_findings_by_severity(markdown_review)
+    total_critical = counts['critical']
 
     if total_critical > 0:
         print(f"\n⚠️  Warning: {total_critical} CRITICAL issues found!")
         print("Review results will be posted as a PR comment.")
+    elif sum(counts.values()) == 0:
+        print("\n✅ No issues found! Code looks good.")
+    else:
+        total = sum(counts.values())
+        print(f"\n📊 Found {total} issues (High: {counts['high']}, "
+              f"Medium: {counts['medium']}, Low: {counts['low']})")
 
     print(f"\n{'=' * 60}\n")
 
