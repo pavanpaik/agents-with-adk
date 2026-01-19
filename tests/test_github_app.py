@@ -135,20 +135,13 @@ MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF3H9fLVDTl8Nj1Bkxp2bZ16yLqPn
 -----END RSA PRIVATE KEY-----'''
 
     with patch.dict(os.environ, {'GITHUB_APP_ID': app_id, 'GITHUB_PRIVATE_KEY': private_key}):
-        # Mock the actual key generation
-        with patch('jwt.encode') as mock_encode:
-            mock_encode.return_value = 'mocked_jwt_token'
+        token = webhook_handler.generate_jwt_token()
 
-            token = webhook_handler.generate_jwt_token()
-
-            # Verify jwt.encode was called with correct parameters
-            mock_encode.assert_called_once()
-            call_args = mock_encode.call_args[0]
-            payload = call_args[0]
-
-            assert payload['iss'] == app_id
-            assert 'exp' in payload
-            assert 'iat' in payload
+        # Verify token can be decoded
+        decoded = jwt.decode(token, options={"verify_signature": False})
+        assert decoded['iss'] == app_id
+        assert 'exp' in decoded
+        assert 'iat' in decoded
 
 
 # ============================================================================
@@ -228,15 +221,16 @@ def test_webhook_pr_opened(client, sample_pr_payload):
     signature = generate_signature(payload.encode(), 'test_webhook_secret')
 
     with patch('webhook_handler.get_installation_access_token') as mock_token, \
+         patch('webhook_handler.fetch_pr_files_with_content') as mock_fetch, \
          patch('webhook_handler.run_code_review') as mock_review, \
-         patch('requests.post') as mock_post:
+         patch('webhook_handler.post_pr_comment') as mock_post:
 
         mock_token.return_value = 'installation_token'
+        mock_fetch.return_value = [{
+            'filename': 'test.py',
+            'content': 'def test(): pass'
+        }]
         mock_review.return_value = '# Code Review\n\nNo issues found'
-
-        mock_post_response = MagicMock()
-        mock_post_response.status_code = 200
-        mock_post.return_value = mock_post_response
 
         response = client.post(
             '/webhook',
@@ -254,7 +248,7 @@ def test_webhook_pr_opened(client, sample_pr_payload):
         mock_review.assert_called_once()
 
         # Verify comment was posted
-        mock_post.assert_called()
+        mock_post.assert_called_once()
 
 
 def test_webhook_pr_synchronize(client, sample_pr_payload):
@@ -265,15 +259,16 @@ def test_webhook_pr_synchronize(client, sample_pr_payload):
     signature = generate_signature(payload_json.encode(), 'test_webhook_secret')
 
     with patch('webhook_handler.get_installation_access_token') as mock_token, \
+         patch('webhook_handler.fetch_pr_files_with_content') as mock_fetch, \
          patch('webhook_handler.run_code_review') as mock_review, \
-         patch('requests.post') as mock_post:
+         patch('webhook_handler.post_pr_comment') as mock_post:
 
         mock_token.return_value = 'installation_token'
+        mock_fetch.return_value = [{
+            'filename': 'test.py',
+            'content': 'def test(): pass'
+        }]
         mock_review.return_value = 'Review complete'
-
-        mock_post_response = MagicMock()
-        mock_post_response.status_code = 200
-        mock_post.return_value = mock_post_response
 
         response = client.post(
             '/webhook',
@@ -358,20 +353,17 @@ def test_run_code_review_success():
         {
             'filename': 'src/main.py',
             'status': 'modified',
-            'additions': 10
+            'additions': 10,
+            'content': 'def hello(): pass'
         }
     ]
 
-    with patch('webhook_handler.fetch_file_content') as mock_fetch, \
-         patch('python_codebase_reviewer.root_agent.run') as mock_agent:
-
-        mock_fetch.return_value = 'def hello(): pass'
+    with patch('webhook_handler.root_agent.run') as mock_agent:
         mock_agent.return_value = 'Review: No issues found'
 
         result = webhook_handler.run_code_review(files, 'owner/repo', 123)
 
         assert 'No issues found' in result
-        mock_fetch.assert_called_once()
         mock_agent.assert_called_once()
 
 
@@ -396,20 +388,16 @@ def test_run_code_review_multiple_files():
     import webhook_handler
 
     files = [
-        {'filename': 'src/main.py', 'status': 'modified'},
-        {'filename': 'src/utils.py', 'status': 'added'}
+        {'filename': 'src/main.py', 'status': 'modified', 'content': 'def test(): pass'},
+        {'filename': 'src/utils.py', 'status': 'added', 'content': 'def util(): pass'}
     ]
 
-    with patch('webhook_handler.fetch_file_content') as mock_fetch, \
-         patch('python_codebase_reviewer.root_agent.run') as mock_agent:
-
-        mock_fetch.return_value = 'def test(): pass'
+    with patch('webhook_handler.root_agent.run') as mock_agent:
         mock_agent.return_value = 'Review complete'
 
         result = webhook_handler.run_code_review(files, 'owner/repo', 123)
 
         # Should have reviewed both files
-        assert mock_fetch.call_count == 2
         assert mock_agent.call_count == 2
 
 
@@ -463,8 +451,8 @@ def test_webhook_missing_installation_id(client):
         content_type='application/json'
     )
 
-    # Should handle gracefully (might return 500 or 200 depending on implementation)
-    assert response.status_code in [200, 500]
+    # Should return 400 for malformed payload (KeyError caught)
+    assert response.status_code == 400
 
 
 def test_webhook_api_error_handling(client, sample_pr_payload):

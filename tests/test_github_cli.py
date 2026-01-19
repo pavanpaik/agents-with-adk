@@ -18,6 +18,10 @@ import sys
 # Add integrations directory to path for importing CLI scripts
 sys.path.insert(0, str(Path(__file__).parent.parent / 'integrations' / 'github_cli'))
 
+# Import modules BEFORE any patching to avoid import-time issues
+import review_pr
+import review_files
+
 
 # ============================================================================
 # Fixtures
@@ -93,8 +97,7 @@ def test_run_gh_command_success():
         mock_result.returncode = 0
         mock_run.return_value = mock_result
 
-        # Import and test
-        import review_pr
+        # review_pr already imported at module level
         output, code = review_pr.run_gh_command(['pr', 'list'])
 
         assert output == 'command output'
@@ -112,7 +115,6 @@ def test_run_gh_command_not_found():
     with patch('subprocess.run') as mock_run:
         mock_run.side_effect = FileNotFoundError()
 
-        import review_pr
 
         with pytest.raises(SystemExit):
             review_pr.run_gh_command(['pr', 'list'])
@@ -126,7 +128,6 @@ def test_check_gh_auth_success():
         mock_result.returncode = 0
         mock_run.return_value = mock_result
 
-        import review_pr
         assert review_pr.check_gh_auth() == True
 
 
@@ -137,7 +138,6 @@ def test_check_gh_auth_failure():
         mock_result.returncode = 1
         mock_run.return_value = mock_result
 
-        import review_pr
         assert review_pr.check_gh_auth() == False
 
 
@@ -149,7 +149,6 @@ def test_get_current_repo_success():
         mock_result.returncode = 0
         mock_run.return_value = mock_result
 
-        import review_pr
         repo = review_pr.get_current_repo()
 
         assert repo == 'owner/repo'
@@ -162,7 +161,6 @@ def test_get_current_repo_not_in_git():
         mock_result.returncode = 1
         mock_run.return_value = mock_result
 
-        import review_pr
 
         with pytest.raises(SystemExit):
             review_pr.get_current_repo()
@@ -176,7 +174,6 @@ def test_get_pr_info_success(sample_pr_json):
         mock_result.returncode = 0
         mock_run.return_value = mock_result
 
-        import review_pr
         pr_info = review_pr.get_pr_info('123')
 
         assert pr_info['number'] == 123
@@ -191,7 +188,6 @@ def test_get_pr_info_not_found():
         mock_result.returncode = 1
         mock_run.return_value = mock_result
 
-        import review_pr
 
         with pytest.raises(SystemExit):
             review_pr.get_pr_info('999')
@@ -205,7 +201,6 @@ def test_get_file_content_success(sample_file_content):
         mock_result.returncode = 0
         mock_run.return_value = mock_result
 
-        import review_pr
         content = review_pr.get_file_content('src/main.py', 'feature-branch')
 
         assert content == sample_file_content
@@ -217,7 +212,6 @@ def test_get_file_content_not_found():
     with patch('subprocess.run') as mock_run:
         mock_run.side_effect = subprocess.CalledProcessError(1, 'git show')
 
-        import review_pr
         content = review_pr.get_file_content('nonexistent.py', 'main')
 
         assert content is None
@@ -277,7 +271,6 @@ def test_post_pr_comment_success():
         mock_result.returncode = 0
         mock_run.return_value = mock_result
 
-        import review_pr
         success = review_pr.post_pr_comment('123', 'Review complete!')
 
         assert success == True
@@ -291,10 +284,8 @@ def test_post_pr_comment_success():
 
 def test_review_file_success(mock_env_vars, sample_file_content):
     """Test reviewing a single file."""
-    with patch('pathlib.Path.read_text') as mock_read:
-        mock_read.return_value = sample_file_content
-
-        import review_files
+    # Patch at the review_files module level, not globally
+    with patch.object(review_files.Path, 'read_text', return_value=sample_file_content):
         # Patch root_agent where it's used in review_files module
         with patch.object(review_files.root_agent, 'run', return_value='Review: No critical issues found'):
             result = review_files.review_file(Path('test.py'))
@@ -306,10 +297,7 @@ def test_review_file_success(mock_env_vars, sample_file_content):
 
 def test_review_file_read_error():
     """Test error when reading file."""
-    with patch('pathlib.Path.read_text') as mock_read:
-        mock_read.side_effect = FileNotFoundError('File not found')
-
-        import review_files
+    with patch.object(review_files.Path, 'read_text', side_effect=FileNotFoundError('File not found')):
         result = review_files.review_file(Path('nonexistent.py'))
 
         assert result['status'] == 'error'
@@ -318,13 +306,9 @@ def test_review_file_read_error():
 
 def test_review_file_agent_error(mock_env_vars, sample_file_content):
     """Test error during AI review."""
-    with patch('pathlib.Path.read_text') as mock_read, \
-         patch('python_codebase_reviewer.root_agent.run') as mock_agent:
+    with patch.object(review_files.Path, 'read_text', return_value=sample_file_content), \
+         patch.object(review_files.root_agent, 'run', side_effect=Exception('API error')):
 
-        mock_read.return_value = sample_file_content
-        mock_agent.side_effect = Exception('API error')
-
-        import review_files
         result = review_files.review_file(Path('test.py'))
 
         assert result['status'] == 'error'
@@ -356,8 +340,8 @@ def test_format_markdown_files():
 def test_review_pr_workflow_e2e(mock_env_vars, sample_pr_json, sample_file_content):
     """Test complete PR review workflow end-to-end."""
     with patch('subprocess.run') as mock_run, \
-         patch('python_codebase_reviewer.root_agent.run') as mock_agent, \
-         patch('pathlib.Path.write_text') as mock_write:
+         patch.object(review_pr.root_agent, 'run', return_value='Review complete: No issues found'), \
+         patch.object(review_pr.Path, 'write_text'):
 
         # Mock gh commands
         def mock_subprocess(*args, **kwargs):
@@ -390,7 +374,6 @@ def test_review_pr_workflow_e2e(mock_env_vars, sample_pr_json, sample_file_conte
         # This would require sys.argv mocking which is complex
 
         # Instead, verify individual components work
-        import review_pr
 
         assert review_pr.check_gh_auth() == True
         repo = review_pr.get_current_repo()
@@ -402,16 +385,10 @@ def test_review_pr_workflow_e2e(mock_env_vars, sample_pr_json, sample_file_conte
 
 def test_review_files_workflow_e2e(mock_env_vars, sample_file_content):
     """Test complete file review workflow."""
-    with patch('pathlib.Path.read_text') as mock_read, \
-         patch('pathlib.Path.write_text') as mock_write, \
-         patch('pathlib.Path.exists') as mock_exists, \
-         patch('python_codebase_reviewer.root_agent.run') as mock_agent:
-
-        mock_read.return_value = sample_file_content
-        mock_exists.return_value = True
-        mock_agent.return_value = 'Review: Code quality is good'
-
-        import review_files
+    with patch.object(review_files.Path, 'read_text', return_value=sample_file_content), \
+         patch.object(review_files.Path, 'write_text'), \
+         patch.object(review_files.Path, 'exists', return_value=True), \
+         patch.object(review_files.root_agent, 'run', return_value='Review: Code quality is good'):
 
         # Test reviewing a file
         result = review_files.review_file(Path('test.py'))
@@ -461,7 +438,6 @@ def test_gh_not_installed():
     with patch('subprocess.run') as mock_run:
         mock_run.side_effect = FileNotFoundError()
 
-        import review_pr
 
         with pytest.raises(SystemExit):
             review_pr.run_gh_command(['pr', 'list'])
