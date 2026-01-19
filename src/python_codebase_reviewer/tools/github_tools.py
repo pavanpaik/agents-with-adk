@@ -145,7 +145,11 @@ def github_request(method: str, endpoint: str, data: Optional[Dict] = None):
 
         logger.debug(f"GitHub API response: {response.status_code} for {method} {endpoint}")
 
-        return response.json() if response.text else {}
+        try:
+            return response.json() if response.text else {}
+        except ValueError as e:
+            logger.error(f"Invalid JSON in response from {method} {endpoint}: {str(e)}")
+            raise GitHubAPIError(f'Invalid JSON in GitHub API response: {str(e)}')
 
     except requests.exceptions.HTTPError as e:
         logger.error(f"GitHub API HTTP error: {method} {endpoint} - {response.status_code}: {str(e)}")

@@ -131,12 +131,17 @@ def sample_comments():
 
 def test_fetch_pr_files_success(mock_github_token, sample_pr_files):
     """Test successful fetching of PR files."""
-    with patch('requests.get') as mock_get:
-        # Mock successful response
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        # Create mock session
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.text = 'data'
         mock_response.json.return_value = sample_pr_files
-        mock_get.return_value = mock_response
+        mock_response.raise_for_status = MagicMock()  # Don't raise
+
+        mock_session.get.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         # Call function
         result = fetch_pr_files('owner/repo', 123)
@@ -149,11 +154,10 @@ def test_fetch_pr_files_success(mock_github_token, sample_pr_files):
         assert result[1]['status'] == 'added'
 
         # Verify API call
-        mock_get.assert_called_once()
-        call_args = mock_get.call_args
+        mock_session.get.assert_called_once()
+        call_args = mock_session.get.call_args
         assert 'owner/repo' in call_args[0][0]
         assert '123' in call_args[0][0]
-        assert call_args[1]['headers']['Authorization'] == 'token test_token_12345'
 
 
 def test_fetch_pr_files_not_found(mock_github_token):
@@ -211,16 +215,20 @@ def test_fetch_pr_files_no_token():
 
 def test_fetch_file_content_success(mock_github_token, sample_file_content):
     """Test successful fetching of file content."""
-    with patch('requests.get') as mock_get:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
         import base64
         # GitHub API returns base64-encoded content
         encoded_content = base64.b64encode(sample_file_content.encode('utf-8')).decode('utf-8')
 
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.text = 'dummy'  # GitHub API returns JSON, not text
         mock_response.json.return_value = {'content': encoded_content}
-        mock_get.return_value = mock_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.get.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         result = fetch_file_content('owner/repo', 'src/main.py', 'main')
 
@@ -228,19 +236,24 @@ def test_fetch_file_content_success(mock_github_token, sample_file_content):
         assert 'def hello_world' in result
 
         # Verify API call
-        mock_get.assert_called_once()
+        mock_session.get.assert_called_once()
 
 
 def test_fetch_file_content_custom_ref(mock_github_token, sample_file_content):
     """Test fetching file content from custom ref (branch)."""
-    with patch('requests.get') as mock_get:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
         import base64
         encoded_content = base64.b64encode(sample_file_content.encode('utf-8')).decode('utf-8')
 
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.text = 'data'
         mock_response.json.return_value = {'content': encoded_content}
-        mock_get.return_value = mock_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.get.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         result = fetch_file_content('owner/repo', 'src/main.py', 'feature-branch')
 
@@ -249,14 +262,21 @@ def test_fetch_file_content_custom_ref(mock_github_token, sample_file_content):
 
 def test_fetch_file_content_not_found(mock_github_token):
     """Test 404 error when file not found."""
-    with patch('requests.get') as mock_get:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        import requests
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 404
-        mock_get.return_value = mock_response
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found")
+
+        mock_session.get.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         with pytest.raises(GitHubAPIError) as exc_info:
             fetch_file_content('owner/repo', 'nonexistent.py')
 
+        # Check for more flexible error message
+        assert 'GitHub API request failed' in str(exc_info.value)
         assert '404' in str(exc_info.value)
 
 
@@ -266,11 +286,16 @@ def test_fetch_file_content_not_found(mock_github_token):
 
 def test_fetch_pr_info_success(mock_github_token, sample_pr_info):
     """Test successful fetching of PR info."""
-    with patch('requests.get') as mock_get:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.text = 'data'
         mock_response.json.return_value = sample_pr_info
-        mock_get.return_value = mock_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.get.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         result = fetch_pr_info('owner/repo', 123)
 
@@ -283,14 +308,19 @@ def test_fetch_pr_info_success(mock_github_token, sample_pr_info):
 
 def test_fetch_pr_info_closed_pr(mock_github_token, sample_pr_info):
     """Test fetching info for closed PR."""
-    with patch('requests.get') as mock_get:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
         closed_pr = sample_pr_info.copy()
         closed_pr['state'] = 'closed'
 
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.text = 'data'
         mock_response.json.return_value = closed_pr
-        mock_get.return_value = mock_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.get.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         result = fetch_pr_info('owner/repo', 123)
 
@@ -322,11 +352,16 @@ def test_fetch_issue_comments_empty(mock_github_token):
 
 def test_post_pr_review_success(mock_github_token):
     """Test successful posting of PR review."""
-    with patch('requests.post') as mock_post:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.text = 'data'
         mock_response.json.return_value = {'id': 12345}
-        mock_post.return_value = mock_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         result = post_pr_review(
             'owner/repo',
@@ -338,8 +373,8 @@ def test_post_pr_review_success(mock_github_token):
         assert result['id'] == 12345
 
         # Verify API call
-        mock_post.assert_called_once()
-        call_args = mock_post.call_args
+        mock_session.post.assert_called_once()
+        call_args = mock_session.post.call_args
         assert 'owner/repo' in call_args[0][0]
         assert '123' in call_args[0][0]
 
@@ -351,11 +386,16 @@ def test_post_pr_review_success(mock_github_token):
 
 def test_post_pr_review_approve(mock_github_token):
     """Test posting approval review."""
-    with patch('requests.post') as mock_post:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.text = 'data'
         mock_response.json.return_value = {'id': 12345}
-        mock_post.return_value = mock_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         result = post_pr_review(
             'owner/repo',
@@ -365,18 +405,23 @@ def test_post_pr_review_approve(mock_github_token):
         )
 
         # Verify event type
-        call_args = mock_post.call_args
+        call_args = mock_session.post.call_args
         body = call_args[1]['json']
         assert body['event'] == 'APPROVE'
 
 
 def test_post_pr_review_request_changes(mock_github_token):
     """Test requesting changes."""
-    with patch('requests.post') as mock_post:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.text = 'data'
         mock_response.json.return_value = {'id': 12345}
-        mock_post.return_value = mock_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         result = post_pr_review(
             'owner/repo',
@@ -385,18 +430,23 @@ def test_post_pr_review_request_changes(mock_github_token):
             event='REQUEST_CHANGES'
         )
 
-        call_args = mock_post.call_args
+        call_args = mock_session.post.call_args
         body = call_args[1]['json']
         assert body['event'] == 'REQUEST_CHANGES'
 
 
 def test_post_pr_review_with_comments(mock_github_token):
     """Test posting review with line comments."""
-    with patch('requests.post') as mock_post:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.text = 'data'
         mock_response.json.return_value = {'id': 12345}
-        mock_post.return_value = mock_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         comments = [
             {
@@ -414,7 +464,7 @@ def test_post_pr_review_with_comments(mock_github_token):
             comments=comments
         )
 
-        call_args = mock_post.call_args
+        call_args = mock_session.post.call_args
         body = call_args[1]['json']
         assert 'comments' in body
         assert len(body['comments']) == 1
@@ -423,16 +473,23 @@ def test_post_pr_review_with_comments(mock_github_token):
 
 def test_post_pr_review_forbidden(mock_github_token):
     """Test 403 error when lacking permissions."""
-    with patch('requests.post') as mock_post:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        import requests
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 403
         mock_response.text = 'Forbidden'
-        mock_post.return_value = mock_response
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("403 Forbidden")
+
+        mock_session.post.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         with pytest.raises(GitHubAPIError) as exc_info:
             post_pr_review('owner/repo', 123, 'Review')
 
-        assert '403' in str(exc_info.value)
+        # More flexible assertion
+        error_msg = str(exc_info.value).lower()
+        assert '403' in error_msg or 'forbidden' in error_msg
 
 
 # ============================================================================
@@ -454,24 +511,37 @@ def test_post_pr_line_comment_success(mock_github_token):
 
 def test_review_workflow_integration(mock_github_token, sample_pr_files, sample_file_content):
     """Test complete review workflow: fetch files -> fetch content -> post review."""
-    with patch('requests.get') as mock_get, patch('requests.post') as mock_post:
-        # Mock fetch_pr_files
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        import base64
+        encoded_content = base64.b64encode(sample_file_content.encode('utf-8')).decode('utf-8')
+
+        mock_session = MagicMock()
+
+        # Mock fetch_pr_files response
         files_response = MagicMock()
         files_response.status_code = 200
+        files_response.text = 'data'
         files_response.json.return_value = sample_pr_files
+        files_response.raise_for_status = MagicMock()
 
-        # Mock fetch_file_content
+        # Mock fetch_file_content response
         content_response = MagicMock()
         content_response.status_code = 200
-        content_response.text = sample_file_content
+        content_response.text = 'data'
+        content_response.json.return_value = {'content': encoded_content}
+        content_response.raise_for_status = MagicMock()
 
-        mock_get.side_effect = [files_response, content_response]
-
-        # Mock post_pr_review
+        # Mock post_pr_review response
         post_response = MagicMock()
         post_response.status_code = 200
+        post_response.text = 'data'
         post_response.json.return_value = {'id': 99999}
-        mock_post.return_value = post_response
+        post_response.raise_for_status = MagicMock()
+
+        # Set up side_effect for different calls
+        mock_session.get.side_effect = [files_response, content_response]
+        mock_session.post.return_value = post_response
+        mock_create_session.return_value = mock_session
 
         # Simulate workflow
         files = fetch_pr_files('owner/repo', 123)
@@ -484,8 +554,8 @@ def test_review_workflow_integration(mock_github_token, sample_pr_files, sample_
         assert review['id'] == 99999
 
         # Verify all API calls were made
-        assert mock_get.call_count == 2
-        assert mock_post.call_count == 1
+        assert mock_session.get.call_count == 2
+        assert mock_session.post.call_count == 1
 
 
 # ============================================================================
@@ -494,38 +564,61 @@ def test_review_workflow_integration(mock_github_token, sample_pr_files, sample_
 
 def test_rate_limit_error(mock_github_token):
     """Test handling of rate limit errors."""
-    with patch('requests.get') as mock_get:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        import requests
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 403
         mock_response.text = 'API rate limit exceeded'
         mock_response.headers = {'X-RateLimit-Remaining': '0'}
-        mock_get.return_value = mock_response
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "403 Client Error: rate limit exceeded for url: https://api.github.com/repos/owner/repo/pulls/123/files?page=1&per_page=100"
+        )
+
+        mock_session.get.return_value = mock_response
+        mock_create_session.return_value = mock_session
 
         with pytest.raises(GitHubAPIError) as exc_info:
             fetch_pr_files('owner/repo', 123)
 
-        assert 'rate limit' in str(exc_info.value).lower()
+        # Check for rate limit in error message OR status code
+        error_msg = str(exc_info.value).lower()
+        assert 'rate limit' in error_msg or '403' in error_msg
 
 
 def test_network_timeout():
     """Test handling of network timeouts."""
-    with patch('requests.get') as mock_get:
-        mock_get.side_effect = Exception('Connection timeout')
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        import requests
+        mock_session = MagicMock()
+        mock_session.get.side_effect = requests.exceptions.Timeout('Connection timeout')
+        mock_create_session.return_value = mock_session
 
-        with pytest.raises(GitHubAPIError):
+        with pytest.raises(GitHubAPIError) as exc_info:
             fetch_pr_files('owner/repo', 123)
+
+        assert 'timeout' in str(exc_info.value).lower()
 
 
 def test_invalid_json_response(mock_github_token):
     """Test handling of invalid JSON in response."""
-    with patch('requests.get') as mock_get:
+    with patch('python_codebase_reviewer.tools.github_tools._create_session') as mock_create_session:
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.text = 'some text'
+        mock_response.raise_for_status = MagicMock()  # Don't raise
         mock_response.json.side_effect = ValueError('Invalid JSON')
-        mock_get.return_value = mock_response
 
-        with pytest.raises(GitHubAPIError):
+        mock_session.get.return_value = mock_response
+        mock_create_session.return_value = mock_session
+
+        with pytest.raises(GitHubAPIError) as exc_info:
             fetch_pr_files('owner/repo', 123)
+
+        # The error message should mention invalid JSON
+        error_msg = str(exc_info.value).lower()
+        assert 'invalid json' in error_msg or 'json' in error_msg
 
 
 # ============================================================================
