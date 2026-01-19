@@ -98,8 +98,11 @@ def verify_webhook_signature(payload_body: bytes, signature: str) -> bool:
     Raises:
         RuntimeError: If GITHUB_WEBHOOK_SECRET is not set in production
     """
+    # Get secret at runtime, not from module-level variable
+    webhook_secret = os.getenv('GITHUB_WEBHOOK_SECRET')
+
     # In production, webhook secret MUST be set
-    if not GITHUB_WEBHOOK_SECRET:
+    if not webhook_secret:
         environment = os.getenv('ENVIRONMENT', 'development')
         if environment == 'production':
             logger.critical("🔴 GITHUB_WEBHOOK_SECRET not set in production!")
@@ -114,7 +117,7 @@ def verify_webhook_signature(payload_body: bytes, signature: str) -> bool:
 
     # Compute expected signature
     expected = 'sha256=' + hmac.new(
-        GITHUB_WEBHOOK_SECRET.encode(),
+        webhook_secret.encode(),
         payload_body,
         hashlib.sha256
     ).hexdigest()
@@ -135,16 +138,20 @@ def generate_jwt_token() -> str:
     Returns:
         JWT token string
     """
+    # Get app ID and private key at runtime
+    app_id = os.getenv('GITHUB_APP_ID')
+    private_key = os.getenv('GITHUB_PRIVATE_KEY')
+
     now = int(time.time())
 
     payload = {
         'iat': now,
         'exp': now + 600,  # Token expires in 10 minutes
-        'iss': GITHUB_APP_ID
+        'iss': app_id
     }
 
     # Sign with private key
-    token = jwt.encode(payload, GITHUB_PRIVATE_KEY, algorithm='RS256')
+    token = jwt.encode(payload, private_key, algorithm='RS256')
 
     return token
 
@@ -424,7 +431,7 @@ def webhook():
     signature = request.headers.get('X-Hub-Signature-256')
     if not verify_webhook_signature(request.data, signature):
         logger.warning("⚠️  Webhook signature verification failed")
-        return jsonify({'error': 'Invalid signature'}), 401
+        return jsonify({'error': 'Invalid signature'}), 403
 
     # Get event type
     event = request.headers.get('X-GitHub-Event')

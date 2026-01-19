@@ -51,5 +51,42 @@ root_agent = Agent(
 logger.info(f"Root orchestrator agent '{constants.AGENT_NAME}' initialized successfully")
 logger.info(f"Available reviewers: security, architecture, code_quality, performance, python_expert")
 
+# Create a wrapper class that adds run() method
+class AgentWrapper:
+    """Wrapper to provide a simple run() interface for the ADK Agent."""
+
+    def __init__(self, agent):
+        self._agent = agent
+
+    def run(self, prompt: str) -> str:
+        """
+        Run the agent with a given prompt.
+
+        Args:
+            prompt: The review request/prompt
+
+        Returns:
+            str: The agent's response
+        """
+        response = self._agent.query(prompt)
+        # The query method returns a response object, extract the text
+        if hasattr(response, 'text'):
+            return response.text
+        elif hasattr(response, 'content'):
+            return response.content
+        elif isinstance(response, str):
+            return response
+        else:
+            return str(response)
+
+    def __getattr__(self, name):
+        """Delegate all other attributes to the wrapped agent."""
+        return getattr(self._agent, name)
+
+# Wrap the agent to add run() method
+root_agent = AgentWrapper(root_agent)
+
+logger.debug("Wrapped root_agent with run() method")
+
 # Export the root agent for the ADK framework
 __all__ = ['root_agent']
