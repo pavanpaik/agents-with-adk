@@ -135,13 +135,22 @@ MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF3H9fLVDTl8Nj1Bkxp2bZ16yLqPn
 -----END RSA PRIVATE KEY-----'''
 
     with patch.dict(os.environ, {'GITHUB_APP_ID': app_id, 'GITHUB_PRIVATE_KEY': private_key}):
-        token = webhook_handler.generate_jwt_token()
+        # Mock jwt.encode to avoid needing a valid private key in tests
+        with patch('jwt.encode') as mock_encode:
+            mock_token = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2MDAwMDAwMDAsImV4cCI6MTYwMDAwMDYwMCwiaXNzIjoiMTIzNDUifQ.signature'
+            mock_encode.return_value = mock_token
 
-        # Verify token can be decoded
-        decoded = jwt.decode(token, options={"verify_signature": False})
-        assert decoded['iss'] == app_id
-        assert 'exp' in decoded
-        assert 'iat' in decoded
+            token = webhook_handler.generate_jwt_token()
+
+            # Verify jwt.encode was called with correct parameters
+            mock_encode.assert_called_once()
+            call_args = mock_encode.call_args
+            payload = call_args[0][0]
+
+            assert payload['iss'] == app_id
+            assert 'exp' in payload
+            assert 'iat' in payload
+            assert token == mock_token
 
 
 # ============================================================================
@@ -178,6 +187,7 @@ def test_get_installation_access_token_success():
 def test_get_installation_access_token_failure():
     """Test failure to get installation access token."""
     import webhook_handler
+    import requests
 
     with patch('requests.post') as mock_post, \
          patch('webhook_handler.generate_jwt_token') as mock_jwt:
@@ -186,6 +196,7 @@ def test_get_installation_access_token_failure():
 
         mock_response = MagicMock()
         mock_response.status_code = 404
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found")
         mock_post.return_value = mock_response
 
         with pytest.raises(Exception):

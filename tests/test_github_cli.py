@@ -367,7 +367,6 @@ def test_review_pr_workflow_e2e(mock_env_vars, sample_pr_json, sample_file_conte
             return result
 
         mock_run.side_effect = mock_subprocess
-        mock_agent.return_value = 'Review complete: No issues found'
 
         # Run main function (would need to refactor to test, but this shows the pattern)
         # import review_pr
