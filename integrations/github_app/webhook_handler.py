@@ -2,14 +2,20 @@
 GitHub App webhook handler for Python Codebase Reviewer.
 
 This Flask application receives webhook events from GitHub and runs
-code reviews on pull requests automatically.
+code reviews on pull requests automatically using the agent-driven MCP approach.
 
 Production-ready features:
 - Webhook signature verification
-- GitHub App authentication
-- Async review processing
+- GitHub App authentication (JWT + installation tokens)
+- Agent-driven review using GitHub MCP tools
 - Error handling and logging
 - Health checks
+
+With MCP, the agent autonomously:
+- Fetches PR files using get_pull_request_files
+- Fetches file contents using get_file_contents
+- Reviews code with specialized agents
+- Posts reviews using create_pull_request_review
 """
 import os
 import sys
@@ -17,10 +23,9 @@ import hmac
 import hashlib
 import logging
 import time
-from pathlib import Path
-from typing import Optional, Dict, List
+import uuid
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 import requests
 import jwt
 
@@ -33,17 +38,10 @@ logger = logging.getLogger(__name__)
 
 try:
     from python_codebase_reviewer import root_agent
-    from python_codebase_reviewer.tools.github_tools import (
-        fetch_pr_files,
-        fetch_file_content,
-        fetch_pr_info,
-        post_pr_comment,
-        GitHubAPIError
-    )
     logger.info("✅ Successfully imported Python Codebase Reviewer")
 except ImportError as e:
     logger.error(f"❌ Failed to import Python Codebase Reviewer: {e}")
-    logger.error("Make sure google-adk is installed: pip install google-adk")
+    logger.error("Make sure the package is installed: pip install -e .")
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -72,11 +70,6 @@ if missing_vars:
         sys.exit(1)
 
 
-# Request tracking
-import uuid
-from flask import g
-
-
 @app.before_request
 def before_request():
     """Add request ID for tracking."""
@@ -94,17 +87,12 @@ def verify_webhook_signature(payload_body: bytes, signature: str) -> bool:
 
     Returns:
         True if signature is valid, False otherwise
-
-    Raises:
-        RuntimeError: If GITHUB_WEBHOOK_SECRET is not set in production
     """
-    # Get secret at runtime, not from module-level variable
     webhook_secret = os.getenv('GITHUB_WEBHOOK_SECRET')
 
     # In production, webhook secret MUST be set
     if not webhook_secret:
-        environment = os.getenv('ENVIRONMENT', 'development')
-        if environment == 'production':
+        if ENVIRONMENT == 'production':
             logger.critical("🔴 GITHUB_WEBHOOK_SECRET not set in production!")
             raise RuntimeError("GITHUB_WEBHOOK_SECRET must be set in production")
         else:
@@ -138,7 +126,6 @@ def generate_jwt_token() -> str:
     Returns:
         JWT token string
     """
-    # Get app ID and private key at runtime
     app_id = os.getenv('GITHUB_APP_ID')
     private_key = os.getenv('GITHUB_PRIVATE_KEY')
 
@@ -165,9 +152,6 @@ def get_installation_access_token(installation_id: int) -> str:
 
     Returns:
         Access token string
-
-    Raises:
-        Exception: If token request fails
     """
     # Generate JWT
     jwt_token = generate_jwt_token()
@@ -190,223 +174,74 @@ def get_installation_access_token(installation_id: int) -> str:
         raise
 
 
-def fetch_pr_files_with_content(
-    repo: str,
-    pr_number: int,
-    token: str
-) -> List[Dict]:
+def run_agent_review(repo: str, pr_number: int, token: str) -> str:
     """
-    Fetch PR files with their content.
+    Run code review using agent with GitHub MCP tools.
+
+    The agent autonomously handles:
+    - Fetching PR files (get_pull_request_files)
+    - Fetching file contents (get_file_contents)
+    - Reviewing with specialized agents
+    - Posting the review (create_pull_request_review or create_issue_comment)
 
     Args:
         repo: Repository in format "owner/repo"
         pr_number: Pull request number
-        token: GitHub access token
+        token: GitHub installation access token
 
     Returns:
-        List of file objects with content
+        Agent's response describing what it did
     """
-    # Temporarily set token for GitHub API calls
-    original_token = os.getenv('GITHUB_TOKEN')
+    logger.info(f"🤖 Delegating to AI agent with GitHub MCP tools...")
+
+    # Set the GitHub token for MCP tools
     os.environ['GITHUB_TOKEN'] = token
 
-    try:
-        files = fetch_pr_files(repo, pr_number)
-
-        # Fetch content for each Python file
-        for file in files:
-            if file['filename'].endswith('.py'):
-                try:
-                    # Fetch content from PR branch
-                    content = fetch_file_content(
-                        repo,
-                        file['filename'],
-                        ref=f"refs/pull/{pr_number}/head"
-                    )
-                    file['content'] = content
-                except GitHubAPIError as e:
-                    logger.warning(f"⚠️  Could not fetch content for {file['filename']}: {e}")
-                    file['content'] = None
-
-        return files
-
-    finally:
-        # Restore original token
-        if original_token:
-            os.environ['GITHUB_TOKEN'] = original_token
-        else:
-            os.environ.pop('GITHUB_TOKEN', None)
-
-
-def run_code_review(files: List[Dict], repo: str, pr_number: int) -> str:
-    """
-    Run code review on files using Python Codebase Reviewer.
-
-    Args:
-        files: List of file objects with content
-        repo: Repository name
-        pr_number: Pull request number
-
-    Returns:
-        Review results as markdown
-    """
-    logger.info(f"🔍 Reviewing {len(files)} files...")
-
-    results = []
-
-    for file in files:
-        if not file.get('content'):
-            continue
-
-        filename = file['filename']
-        content = file['content']
-
-        logger.info(f"  📝 Reviewing {filename}...")
-
-        # Create review request
-        review_request = f"""
-Review this Python file from a pull request:
+    # Create natural language task for the agent
+    task = f"""
+You are handling a GitHub pull request webhook event.
 
 **Repository**: {repo}
-**PR**: #{pr_number}
-**File**: `{filename}`
+**Pull Request**: #{pr_number}
 
-```python
-{content}
-```
+**Your task:**
+1. Use `get_pull_request_files` MCP tool to fetch all changed files in the PR
+2. Filter to Python files only (*.py)
+3. For each Python file, use `get_file_contents` to fetch the file content
+4. Review each file using your specialized reviewer agents:
+   - Security vulnerabilities (OWASP Top 10)
+   - Architecture issues (SOLID principles)
+   - Code quality (PEP 8, Pythonic idioms)
+   - Performance issues (complexity, N+1 queries)
+   - Python best practices
 
-Provide a comprehensive review with:
-- Security vulnerabilities (OWASP Top 10)
-- Architecture issues (SOLID principles)
-- Code quality (PEP standards)
-- Performance issues
-- Python best practices
+5. Generate a comprehensive markdown review report with:
+   - Executive summary with severity counts (Critical/High/Medium/Low)
+   - File-by-file breakdown with specific issues
+   - Line numbers and code snippets where applicable
+   - Suggested fixes
+   - Severity indicators (🔴 Critical, 🟠 High, 🟡 Medium, 🔵 Low)
 
-Focus on actionable findings with specific line numbers and fixes.
+6. Post your review to the pull request using `create_issue_comment` MCP tool
+
+**Important:**
+- If no Python files are changed, post a brief comment saying so
+- Include a footer explaining this is an automated review
+- Be specific and actionable in your findings
+- Focus on issues that matter (security, bugs, design flaws)
+
+Begin your review now.
 """
 
-        try:
-            response = root_agent.run(review_request)
-            results.append({
-                'file': filename,
-                'review': response,
-                'status': 'success'
-            })
-            logger.info(f"  ✅ Completed review of {filename}")
+    try:
+        logger.info("⏳ Agent review in progress...")
+        response = root_agent.run(task)
+        logger.info("✅ Agent completed review and posted to PR")
+        return response
 
-        except Exception as e:
-            logger.error(f"  ❌ Error reviewing {filename}: {e}")
-            results.append({
-                'file': filename,
-                'review': f"Error during review: {str(e)}",
-                'status': 'error'
-            })
-
-    # Format results
-    return format_review_results(results, repo, pr_number)
-
-
-def format_review_results(results: List[Dict], repo: str, pr_number: int) -> str:
-    """
-    Format review results as GitHub-flavored markdown.
-
-    Args:
-        results: List of review results
-        repo: Repository name
-        pr_number: Pull request number
-
-    Returns:
-        Formatted markdown string
-    """
-    output = []
-
-    # Header
-    output.append("# 🔍 Python Code Review Results\n\n")
-    output.append(f"**Repository**: {repo}\n")
-    output.append(f"**Pull Request**: #{pr_number}\n")
-    output.append(f"**Reviewed by**: Python Codebase Reviewer (GitHub App)\n\n")
-    output.append("---\n\n")
-
-    # Count findings
-    total_critical = sum(
-        r['review'].upper().count('CRITICAL')
-        for r in results if r['status'] == 'success'
-    )
-    total_high = sum(
-        r['review'].upper().count('HIGH')
-        for r in results if r['status'] == 'success'
-    )
-    total_medium = sum(
-        r['review'].upper().count('MEDIUM')
-        for r in results if r['status'] == 'success'
-    )
-
-    # Summary
-    output.append("## 📊 Summary\n\n")
-
-    if total_critical + total_high + total_medium == 0:
-        output.append("✅ **No issues found!** Code looks good.\n\n")
-    else:
-        if total_critical > 0:
-            output.append(f"- 🔴 **{total_critical} Critical** - Immediate action required\n")
-        if total_high > 0:
-            output.append(f"- 🟠 **{total_high} High** - Important to fix\n")
-        if total_medium > 0:
-            output.append(f"- 🟡 **{total_medium} Medium** - Should be addressed\n")
-        output.append("\n")
-
-        if total_critical > 0:
-            output.append("> ⚠️ **Warning**: Critical security issues detected!\n\n")
-
-    output.append("---\n\n")
-
-    # Detailed results
-    output.append("## 📁 Detailed Review\n\n")
-
-    for result in results:
-        output.append(f"### 📄 `{result['file']}`\n\n")
-
-        if result['status'] == 'error':
-            output.append(f"❌ **Error**: {result['review']}\n\n")
-        else:
-            # Count issues in this file
-            critical = result['review'].upper().count('CRITICAL')
-            high = result['review'].upper().count('HIGH')
-            medium = result['review'].upper().count('MEDIUM')
-            total = critical + high + medium
-
-            if total == 0:
-                output.append("✅ No issues found in this file.\n\n")
-            else:
-                output.append(f"**Found {total} issue(s)** ")
-                badges = []
-                if critical > 0:
-                    badges.append(f"🔴 {critical} Critical")
-                if high > 0:
-                    badges.append(f"🟠 {high} High")
-                if medium > 0:
-                    badges.append(f"🟡 {medium} Medium")
-                output.append(" | ".join(badges) + "\n\n")
-
-                # Collapsible details
-                output.append("<details>\n")
-                output.append("<summary>📖 Click to view detailed review</summary>\n\n")
-                output.append(result['review'])
-                output.append("\n\n</details>\n\n")
-
-        output.append("---\n\n")
-
-    # Footer
-    output.append("## 🤖 About This Review\n\n")
-    output.append("This automated review was performed by the **Python Codebase Reviewer** GitHub App.\n\n")
-    output.append("**Review Capabilities**:\n")
-    output.append("- 🔒 Security: OWASP Top 10 vulnerabilities\n")
-    output.append("- 🏗️ Architecture: SOLID principles, design patterns\n")
-    output.append("- ✨ Code Quality: PEP standards, Pythonic idioms\n")
-    output.append("- ⚡ Performance: Algorithm complexity, N+1 queries\n")
-    output.append("- 🐍 Python Expertise: Standard library, frameworks, modern features\n")
-
-    return ''.join(output)
+    except Exception as e:
+        logger.error(f"❌ Error during agent review: {e}", exc_info=True)
+        raise
 
 
 @app.route('/health', methods=['GET'])
@@ -414,8 +249,9 @@ def health_check():
     """Health check endpoint for Cloud Run."""
     return jsonify({
         'status': 'healthy',
-        'service': 'python-codebase-reviewer',
-        'version': '1.0.0'
+        'service': 'python-codebase-reviewer-github-app',
+        'version': '2.0.0-mcp',
+        'mcp_enabled': True
     }), 200
 
 
@@ -463,63 +299,36 @@ def webhook():
             logger.info("🔑 Getting installation access token...")
             token = get_installation_access_token(installation_id)
 
-            # Fetch PR files with content
-            logger.info("📥 Fetching PR files...")
-            files = fetch_pr_files_with_content(repo, pr_number, token)
+            # Run agent-driven review with MCP tools
+            agent_response = run_agent_review(repo, pr_number, token)
 
-            # Filter to Python files only
-            python_files = [f for f in files if f['filename'].endswith('.py')]
-
-            if not python_files:
-                logger.info("ℹ️  No Python files to review")
-                return jsonify({'status': 'no_python_files'}), 200
-
-            logger.info(f"📝 Found {len(python_files)} Python files to review")
-
-            # Run code review
-            review_result = run_code_review(python_files, repo, pr_number)
-
-            # Post review comment
-            logger.info("💬 Posting review comment...")
-            os.environ['GITHUB_TOKEN'] = token
-            post_pr_comment(repo, pr_number, review_result)
-
-            logger.info(f"✅ Successfully reviewed PR #{pr_number}")
+            logger.info(f"✅ Successfully processed PR #{pr_number}")
 
             return jsonify({
                 'status': 'success',
                 'pr_number': pr_number,
-                'files_reviewed': len(python_files)
+                'repository': repo,
+                'agent_response': agent_response[:200] + '...' if len(agent_response) > 200 else agent_response
             }), 200
 
         except (KeyError, TypeError) as e:
-            # Handle malformed payload
             logger.error(f"❌ Malformed webhook payload: {e}", exc_info=True)
             return jsonify({'error': 'Malformed payload'}), 400
 
-        except GitHubAPIError as e:
-            # Handle GitHub API errors
-            logger.error(f"❌ GitHub API error: {e}", exc_info=True)
-            return jsonify({'error': 'GitHub API error'}), 502
-
-        except ValueError as e:
-            # Handle validation errors
-            logger.error(f"❌ Validation error: {e}", exc_info=True)
-            return jsonify({'error': str(e)}), 400
-
         except requests.exceptions.RequestException as e:
-            # Handle network errors
             logger.error(f"❌ Network error: {e}", exc_info=True)
             return jsonify({'error': 'Network error communicating with GitHub'}), 502
 
         except Exception as e:
-            # Catch-all for unexpected errors
             logger.critical(f"❌ Unexpected error processing webhook: {e}", exc_info=True)
             return jsonify({'error': 'Internal server error'}), 500
 
     elif event == 'ping':
         logger.info("🏓 Received ping event")
-        return jsonify({'status': 'pong'}), 200
+        return jsonify({
+            'status': 'pong',
+            'message': 'Python Codebase Reviewer GitHub App is running with MCP support'
+        }), 200
 
     else:
         logger.info(f"ℹ️  Unsupported event type: {event}")
@@ -531,8 +340,18 @@ def index():
     """Root endpoint."""
     return jsonify({
         'service': 'Python Codebase Reviewer - GitHub App',
-        'version': '1.0.0',
+        'version': '2.0.0-mcp',
         'status': 'running',
+        'mcp_enabled': True,
+        'features': [
+            'Agent-driven code review',
+            'GitHub MCP tool integration',
+            'Automated PR reviews',
+            'Security vulnerability detection',
+            'Architecture analysis',
+            'Code quality assessment',
+            'Performance optimization'
+        ],
         'endpoints': {
             'health': '/health',
             'webhook': '/webhook'
@@ -551,13 +370,14 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT', 8080))
 
     logger.info("=" * 60)
-    logger.info("🚀 Starting Python Codebase Reviewer GitHub App")
+    logger.info("🚀 Starting Python Codebase Reviewer GitHub App (MCP)")
     logger.info("=" * 60)
     logger.info(f"   Port: {port}")
     logger.info(f"   GitHub App ID: {GITHUB_APP_ID}")
     logger.info(f"   Webhook Secret: {'✓ Set' if GITHUB_WEBHOOK_SECRET else '✗ Not set'}")
     logger.info(f"   Private Key: {'✓ Set' if GITHUB_PRIVATE_KEY else '✗ Not set'}")
     logger.info(f"   Google API Key: {'✓ Set' if GOOGLE_API_KEY else '✗ Not set'}")
+    logger.info(f"   MCP Enabled: ✓ Yes")
     logger.info("=" * 60)
 
     # Run Flask app

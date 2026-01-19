@@ -5,8 +5,12 @@ This is the main orchestrator agent that coordinates specialized review agents
 to perform comprehensive Python code reviews.
 """
 import logging
+import os
 from google.adk.agents import Agent
 from google.adk.tools.agent_tool import AgentTool
+from google.adk.tools.mcp_tool import McpToolset
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
+from mcp import StdioServerParameters
 from .shared_libraries import constants
 from . import prompt
 
@@ -33,6 +37,24 @@ python_expert_tool = AgentTool(agent=python_expert)
 
 logger.debug("Sub-agents wrapped as tools successfully")
 
+# Create GitHub MCP toolset for GitHub API operations
+logger.info("Initializing GitHub MCP toolset")
+github_mcp_toolset = McpToolset(
+    connection_params=StdioConnectionParams(
+        server_params=StdioServerParameters(
+            command='npx',
+            args=[
+                '-y',
+                '@modelcontextprotocol/server-github'
+            ],
+            env={
+                'GITHUB_PERSONAL_ACCESS_TOKEN': os.getenv('GITHUB_TOKEN', ''),
+            }
+        ),
+    ),
+)
+logger.debug("GitHub MCP toolset initialized")
+
 # Create the root orchestrator agent
 root_agent = Agent(
     model=constants.ORCHESTRATOR_MODEL,
@@ -45,11 +67,13 @@ root_agent = Agent(
         code_quality_reviewer_tool,
         performance_reviewer_tool,
         python_expert_tool,
+        github_mcp_toolset,  # Add GitHub MCP tools
     ]
 )
 
 logger.info(f"Root orchestrator agent '{constants.AGENT_NAME}' initialized successfully")
 logger.info(f"Available reviewers: security, architecture, code_quality, performance, python_expert")
+logger.info("GitHub MCP toolset enabled (51+ GitHub API tools available)")
 
 # Create a wrapper class that adds run() method
 class AgentWrapper:
